@@ -1,33 +1,52 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import { jwtDecode } from "jwt-decode";
+import { useEffect, useState } from "react";
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+export default function TabsLayout() {
+  const [rol, setRol] = useState(null);
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  useEffect(() => {
+    const cargarRol = async () => {
+      const token = await SecureStore.getItemAsync("mi_token_jwt");
+      if (token) {
+        const decoded: any = jwtDecode(token);
+        setRol(decoded.rol?.toLowerCase()); // Lo pasamos a minúsculas por seguridad
+      }
+    };
+    cargarRol();
+  }, []);
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+    <Tabs screenOptions={{ tabBarActiveTintColor: "#3498db" }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: "Inicio",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="home" size={24} color={color} />
+          ),
         }}
       />
+
       <Tabs.Screen
-        name="explore"
+        name="homecuidador"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: "Pacientes",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="people" size={24} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="homepm"
+        options={{
+          title: "Perfil",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="person" size={24} color={color} />
+          ),
         }}
       />
     </Tabs>

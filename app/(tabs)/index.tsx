@@ -1,98 +1,89 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import { jwtDecode } from "jwt-decode";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Text, View } from "react-native";
+import BotonAccion from "../componentes/BotonAccion";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function PantallaPrincipal() {
+  const [rol, setRol] = useState(null);
+  const [id, setId] = useState(null);
+  const [nombre, setNombre] = useState(null);
+  const [cargando, setCargando] = useState(true); // <--- Estado de carga
 
-export default function HomeScreen() {
+  useEffect(() => {
+    const obtenerRol = async () => {
+      try {
+        const token = await SecureStore.getItemAsync("mi_token_jwt");
+
+        if (token) {
+          const decoded: any = jwtDecode(token);
+          setRol(decoded.rol);
+          setId(decoded.idUsuario); // Guardamos el ID del usuario
+          setNombre(decoded.nombre); // Guardamos el nombre del usuario
+        } else {
+          // Manejar caso sin token (ej. redirigir a Login)
+          setRol(null);
+          setId(null);
+          setNombre(null);
+        }
+      } catch (error) {
+        console.error("Error al decodificar token:", error);
+        setRol(null);
+        setId(null);
+        setNombre(null);
+      } finally {
+        setCargando(false); // <--- Finaliza la carga pase lo que pase
+      }
+    };
+
+    obtenerRol();
+  }, []);
+  const router = useRouter();
+
+  const cerrarSesionTotal = async () => {
+    await SecureStore.deleteItemAsync("mi_token_jwt");
+    setRol(null); // Limpia el estado del rol
+    setId(null);
+    setNombre(null);
+    setTimeout(() => {
+      router.replace("/inicio");
+    }, 100); // Redirige al login
+  };
+
+  // 1. Mientras decide qué mostrar
+  if (cargando) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }
+
+  // 3. Renderizado condicional según el rol
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
-
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      {rol === "Persona Mayor" ? (
+        <View>
+          <Text>Bienvenido, {nombre}</Text>
+          <BotonAccion
+            titulo="Cerrar sesión"
+            onPress={cerrarSesionTotal}
+            color="#e74c3c"
+          />
+        </View>
+      ) : rol === "cuidador" ? (
+        <View>
+          <Text>Bienvenido, {nombre}</Text>
+          <BotonAccion
+            titulo="Cerrar sesión"
+            onPress={cerrarSesionTotal}
+            color="#e74c3c"
+          />
+        </View>
+      ) : (
+        <Text>Rol no reconocido</Text>
+      )}
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
