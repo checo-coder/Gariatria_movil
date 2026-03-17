@@ -2,14 +2,19 @@ import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { jwtDecode } from "jwt-decode";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
-import BotonAccion from "../componentes/BotonAccion";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import GraficaSemanal from "../componentes/GraficaBarras";
+import GraficaCalor from "../componentes/GraficaCalor";
+import MenuJuegos from "../componentes/MenuJuegos";
 
 export default function PantallaPrincipal() {
   const [rol, setRol] = useState(null);
   const [id, setId] = useState(null);
   const [nombre, setNombre] = useState(null);
   const [cargando, setCargando] = useState(true); // <--- Estado de carga
+  const [estadisticas, setEstadisticas] = useState([]);
+  const [cargandoEstadisticas, setCargandoEstadisticas] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const obtenerRol = async () => {
@@ -39,17 +44,27 @@ export default function PantallaPrincipal() {
 
     obtenerRol();
   }, []);
-  const router = useRouter();
 
-  const cerrarSesionTotal = async () => {
-    await SecureStore.deleteItemAsync("mi_token_jwt");
-    setRol(null); // Limpia el estado del rol
-    setId(null);
-    setNombre(null);
-    setTimeout(() => {
-      router.replace("/inicio");
-    }, 100); // Redirige al login
-  };
+  useEffect(() => {
+    if (!id) return; // Si no hay ID, no hacemos nada
+
+    const obtenerEstadisticas = async () => {
+      try {
+        setCargandoEstadisticas(true);
+        const respuesta = await fetch(
+          `http://192.168.100.38:4000/estadisticas/${id}`,
+        );
+        const datos = await respuesta.json();
+        setEstadisticas(datos);
+      } catch (e) {
+        console.error("Error stats:", e);
+      } finally {
+        setCargandoEstadisticas(false);
+      }
+    };
+
+    obtenerEstadisticas();
+  }, [id]);
 
   // 1. Mientras decide qué mostrar
   if (cargando) {
@@ -65,20 +80,21 @@ export default function PantallaPrincipal() {
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
       {rol === "Persona Mayor" ? (
         <View>
-          <Text>Bienvenido, {nombre}</Text>
-          <BotonAccion
-            titulo="Cerrar sesión"
-            onPress={cerrarSesionTotal}
-            color="#e74c3c"
-          />
+          <Text style={styles.titulo}>Bienvenido persona mayor, {nombre}</Text>
+          <MenuJuegos />
         </View>
       ) : rol === "cuidador" ? (
         <View>
-          <Text>Bienvenido, {nombre}</Text>
-          <BotonAccion
-            titulo="Cerrar sesión"
-            onPress={cerrarSesionTotal}
-            color="#e74c3c"
+          <Text>Bienvenido cuidador, {nombre}</Text>
+          <GraficaSemanal
+            titulo="Juegos completados (7 días)"
+            datos={estadisticas}
+            cargando={cargandoEstadisticas}
+          />
+          <GraficaCalor
+            titulo="Actividad del Paciente"
+            datos={estadisticas}
+            cargando={cargandoEstadisticas}
           />
         </View>
       ) : (
@@ -87,3 +103,13 @@ export default function PantallaPrincipal() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  contenedor: { padding: 20 },
+  titulo: {
+    fontSize: 22,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+});
