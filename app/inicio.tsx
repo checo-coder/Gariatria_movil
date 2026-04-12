@@ -45,6 +45,10 @@ export default function Inicio({}) {
       // Si el servidor responde con un status 200 (OK)
       if (respuesta.ok) {
         await SecureStore.setItemAsync("mi_token_jwt", datos.token);
+        await SecureStore.setItemAsync(
+          "idDelPaciente",
+          datos.id_paciente_asignado.toString(),
+        );
 
         Alert.alert("Éxito", "Sesión iniciada correctamente");
 

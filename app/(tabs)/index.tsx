@@ -1,115 +1,212 @@
+import * as Location from "expo-location"; // Para el GPS
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { jwtDecode } from "jwt-decode";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import GraficaSemanal from "../componentes/GraficaBarras";
-import GraficaCalor from "../componentes/GraficaCalor";
-import MenuJuegos from "../componentes/MenuJuegos";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { io } from "socket.io-client"; // Para el tiempo real
+
+// Importación de tus componentes
+import GraficaBarras from "../_componentes/GraficaBarras";
+import GraficaCalor from "../_componentes/GraficaCalor";
+import GraficaRosca from "../_componentes/GraficaRosca";
+import MenuJuegos from "../_componentes/MenuJuegos";
+
+// 1. Configuración del Socket (Usa la IP de tu servidor)
+const socket = io("http://192.168.100.38:4000");
+
+// 2. Definición de tipos para TypeScript
+interface Estadistica {
+  date: string;
+  count: number;
+}
+
+interface MedStats {
+  estado: string;
+  cantidad: number;
+}
 
 export default function PantallaPrincipal() {
-  const [rol, setRol] = useState(null);
-  const [id, setId] = useState(null);
-  const [nombre, setNombre] = useState(null);
-  const [cargando, setCargando] = useState(true); // <--- Estado de carga
-  const [estadisticas, setEstadisticas] = useState([]);
+  const [rol, setRol] = useState<string | null>(null);
+  const [id, setId] = useState<string | null>(null);
+  const [nombre, setNombre] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(true);
+
+  // Estados de datos para el Cuidador
+  const [estadisticas, setEstadisticas] = useState<Estadistica[]>([]);
+  const [medsHoy, setMedsHoy] = useState<MedStats[]>([]);
   const [cargandoEstadisticas, setCargandoEstadisticas] = useState(true);
+
   const router = useRouter();
 
+  // --- EFECTO 1: OBTENER DATOS DEL USUARIO ---
   useEffect(() => {
-    const obtenerRol = async () => {
+    const obtenerDatosToken = async () => {
       try {
         const token = await SecureStore.getItemAsync("mi_token_jwt");
-
         if (token) {
           const decoded: any = jwtDecode(token);
           setRol(decoded.rol);
-          setId(decoded.idUsuario); // Guardamos el ID del usuario
-          setNombre(decoded.nombre); // Guardamos el nombre del usuario
-        } else {
-          // Manejar caso sin token (ej. redirigir a Login)
-          setRol(null);
-          setId(null);
-          setNombre(null);
+          setId(decoded.idUsuario);
+          setNombre(decoded.nombre);
         }
       } catch (error) {
-        console.error("Error al decodificar token:", error);
-        setRol(null);
-        setId(null);
-        setNombre(null);
+        console.error("Error al leer token:", error);
       } finally {
-        setCargando(false); // <--- Finaliza la carga pase lo que pase
+        setCargando(false);
       }
     };
-
-    obtenerRol();
+    obtenerDatosToken();
   }, []);
 
+  // --- EFECTO 2: RASTREO GPS (Solo si es Persona Mayor) ---
   useEffect(() => {
-    if (!id) return; // Si no hay ID, no hacemos nada
+    if (rol === "Persona Mayor" && id) {
+      iniciarRastreoRealtime();
+    }
+  }, [rol, id]);
 
-    const obtenerEstadisticas = async () => {
+  const iniciarRastreoRealtime = async () => {
+    try {
+      // Pedir permisos de ubicación
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        console.warn("Permiso de GPS denegado");
+        return;
+      }
+
+      // Empezar a vigilar la posición y emitir por socket
+      await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 10000, // Cada 10 segundos
+          distanceInterval: 10, // O cada 10 metros
+        },
+        (loc) => {
+          socket.emit("enviar-ubicacion", {
+            id_paciente: id,
+            latitud: loc.coords.latitude,
+            longitud: loc.coords.longitude,
+          });
+        },
+      );
+    } catch (err) {
+      console.error("Error en configuración de rastreo:", err);
+    }
+  };
+
+  // --- EFECTO 3: CARGAR ESTADÍSTICAS (Solo si es Cuidador) ---
+  useEffect(() => {
+    if (!id || rol !== "cuidador") return;
+
+    const cargarDatosPanel = async () => {
       try {
         setCargandoEstadisticas(true);
-        const respuesta = await fetch(
-          `http://192.168.100.38:4000/estadisticas/${id}`,
-        );
-        const datos = await respuesta.json();
-        setEstadisticas(datos);
+
+        // Peticiones paralelas
+        const [resGral, resMeds] = await Promise.all([
+          fetch(`http://192.168.100.38:4000/estadisticas/${id}`),
+          fetch(
+            `http://192.168.100.38:4000/estadisticas/medicamentos-hoy/${id}`,
+          ),
+        ]);
+
+        const datosGral = resGral.ok ? await resGral.json() : [];
+        const datosMeds = resMeds.ok ? await resMeds.json() : [];
+
+        setEstadisticas(Array.isArray(datosGral) ? datosGral : []);
+        setMedsHoy(Array.isArray(datosMeds) ? datosMeds : []);
       } catch (e) {
-        console.error("Error stats:", e);
+        console.error("Error cargando estadísticas:", e);
+        setEstadisticas([]);
+        setMedsHoy([]);
       } finally {
         setCargandoEstadisticas(false);
       }
     };
 
-    obtenerEstadisticas();
-  }, [id]);
+    cargarDatosPanel();
+  }, [id, rol]);
 
-  // 1. Mientras decide qué mostrar
   if (cargando) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#0000ff" />
+      <View style={styles.centrado}>
+        <ActivityIndicator size="large" color="#3498db" />
       </View>
     );
   }
 
-  // 3. Renderizado condicional según el rol
   return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+    <View style={styles.flex}>
       {rol === "Persona Mayor" ? (
-        <View>
-          <Text style={styles.titulo}>Bienvenido persona mayor, {nombre}</Text>
+        // --- VISTA PACIENTE ---
+        <View style={styles.contenedor}>
+          <Text style={styles.tituloBienvenida}>¡Hola, {nombre}!</Text>
+          <Text style={styles.subtitulo}>Tus ejercicios de hoy:</Text>
           <MenuJuegos />
+          <View style={styles.badgeRastreo}>
+            <Text style={styles.textoBadge}>
+              🛡️ Rastreo de seguridad activo
+            </Text>
+          </View>
         </View>
       ) : rol === "cuidador" ? (
-        <View>
-          <Text>Bienvenido cuidador, {nombre}</Text>
-          <GraficaSemanal
-            titulo="Juegos completados (7 días)"
-            datos={estadisticas}
-            cargando={cargandoEstadisticas}
-          />
-          <GraficaCalor
-            titulo="Actividad del Paciente"
-            datos={estadisticas}
-            cargando={cargandoEstadisticas}
-          />
-        </View>
+        // --- VISTA CUIDADOR ---
+        <ScrollView contentContainerStyle={styles.contenedorCuidador}>
+          <Text style={styles.tituloBienvenida}>Panel del Cuidador</Text>
+          <Text style={styles.subtitulo}>Paciente: {nombre}</Text>
+
+          <GraficaRosca datos={medsHoy} cargando={cargandoEstadisticas} />
+
+          <View style={styles.seccion}>
+            <GraficaBarras
+              titulo="Actividad Semanal"
+              datos={estadisticas}
+              cargando={cargandoEstadisticas}
+            />
+          </View>
+
+          <View style={styles.seccion}>
+            <GraficaCalor
+              titulo="Consistencia de Actividad"
+              datos={estadisticas}
+              cargando={cargandoEstadisticas}
+            />
+          </View>
+        </ScrollView>
       ) : (
-        <Text>Rol no reconocido</Text>
+        <View style={styles.centrado}>
+          <Text>Error de sesión. Por favor, vuelve a entrar.</Text>
+        </View>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  contenedor: { padding: 20 },
-  titulo: {
-    fontSize: 22,
+  flex: { flex: 1, backgroundColor: "#F5F6FA" },
+  centrado: { flex: 1, justifyContent: "center", alignItems: "center" },
+  contenedor: { flex: 1, padding: 20, alignItems: "center" },
+  contenedorCuidador: { padding: 20, alignItems: "center" },
+  tituloBienvenida: {
+    fontSize: 24,
     fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 20,
+    color: "#2c3e50",
+    marginTop: 20,
   },
+  subtitulo: { fontSize: 16, color: "#7f8c8d", marginBottom: 20 },
+  seccion: { width: "100%", marginTop: 10 },
+  badgeRastreo: {
+    marginTop: 20,
+    backgroundColor: "#dff9fb",
+    padding: 10,
+    borderRadius: 20,
+  },
+  textoBadge: { color: "#0097e6", fontWeight: "bold", fontSize: 12 },
 });

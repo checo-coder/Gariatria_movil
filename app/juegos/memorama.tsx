@@ -1,18 +1,21 @@
 import { useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
-import MemoramaCard from "../componentes/MemoramaCard";
+import MemoramaCard from "../_componentes/MemoramaCard";
+
+const API_URL = "http://192.168.100.38:4000";
 
 interface Carta {
-  code: string; // Identificador único para comparar pares
-  img: string; // URL de la imagen de la carta
+  code: string;
+  img: string;
 }
 
 export default function JuegoMemorama() {
@@ -21,24 +24,79 @@ export default function JuegoMemorama() {
   const [adivinadas, setAdivindas] = useState<number[]>([]);
   const [error, setError] = useState<number>(0);
   const [cargando, setCargando] = useState(true);
+
+  // --- LÓGICA DE VISTA INICIAL ---
+  const [mostrandoTodo, setMostrandoTodo] = useState(true);
+
+  // --- MÉTRICAS (OCULTAS AL USUARIO) ---
+  const [puntaje, setPuntaje] = useState<number>(0);
+  const [comboActual, setComboActual] = useState<number>(0);
+  const [maxCombo, setMaxCombo] = useState<number>(0);
+  const [tiempoInicio] = useState<Date>(new Date());
+
   const router = useRouter();
 
-  // 1. Carga de cartas desde tu API
   useEffect(() => {
-    fetch("http://192.168.100.38:4000/memoria") // USA TU IP LOCAL, NO localhost
+    fetch(`${API_URL}/memoria`)
       .then((response) => response.json())
       .then((data) => {
         setCartas(data.cards);
         setCargando(false);
+        // AL TERMINAR DE CARGAR, ESPERAR 3 SEGUNDOS Y VOLTEAR
+        setTimeout(() => {
+          setMostrandoTodo(false);
+        }, 3000);
       })
-      .catch((error) => {
-        console.error("Error:", error);
+      .catch((err) => {
+        console.error("Error cargando cartas:", err);
         setCargando(false);
       });
   }, []);
 
-  // 2. Lógica de selección
+  const guardarResultadoFinal = async (
+    totalAciertos: number,
+    totalErrores: number,
+    puntajeFinal: number,
+  ) => {
+    try {
+      const idCliente = await SecureStore.getItemAsync("idDelPaciente");
+      const tiempoFin = new Date();
+      const segundos = Math.floor(
+        (tiempoFin.getTime() - tiempoInicio.getTime()) / 1000,
+      );
+
+      const body = {
+        id_cliente: idCliente,
+        id_juego: 1, // REVISA QUE ESTE SEA EL ID EN TU BD
+        puntaje: puntajeFinal,
+        aciertos: totalAciertos,
+        errores: totalErrores,
+        tiempo: segundos,
+        detalles: { max_combo: maxCombo, finalizo: true },
+      };
+
+      const respuesta = await fetch(`${API_URL}/juegos/registrar-resultado`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!respuesta.ok) {
+        const errorData = await respuesta.json();
+        console.log("❌ Error del servidor:", errorData);
+        throw new Error("Respuesta no exitosa");
+      }
+
+      console.log("✅ Resultado guardado silenciosamente");
+    } catch (err) {
+      console.error("🔴 Error guardando resultado:", err);
+    }
+  };
+
   const onClickCarta = (index: number) => {
+    // Si estamos en los 3 segundos iniciales, no dejar clickear
+    if (mostrandoTodo) return;
+
     if (
       seleccionadas.length < 2 &&
       !seleccionadas.includes(index) &&
@@ -48,7 +106,6 @@ export default function JuegoMemorama() {
     }
   };
 
-  // 3. Lógica de comparación
   useEffect(() => {
     if (seleccionadas.length === 2) {
       const carta1 = cartas[seleccionadas[0]];
@@ -57,19 +114,33 @@ export default function JuegoMemorama() {
       if (carta1.code === carta2.code) {
         const nuevasAdivinadas = [...adivinadas, ...seleccionadas];
         setAdivindas(nuevasAdivinadas);
+
+        // Puntuación interna
+        const puntosGanados = comboActual > 0 ? 3 : 1;
+        const nuevoPuntaje = puntaje + puntosGanados;
+        setPuntaje(nuevoPuntaje);
+        setComboActual((prev) => prev + 1);
+        if (comboActual + 1 > maxCombo) setMaxCombo(comboActual + 1);
+
         setSeleccionadas([]);
 
-        // Verificar si ganó
         if (nuevasAdivinadas.length === cartas.length && cartas.length > 0) {
-          Alert.alert("¡Felicidades!", "Has encontrado todos los pares", [
-            { text: "Volver al menú", onPress: () => router.back() },
-          ]);
+          guardarResultadoFinal(
+            nuevasAdivinadas.length / 2,
+            error,
+            nuevoPuntaje,
+          );
+          Alert.alert(
+            "¡Felicidades!",
+            "Has completado el ejercicio de memoria.",
+            [{ text: "Continuar", onPress: () => router.back() }],
+          );
         }
       } else {
         setError(error + 1);
-        setTimeout(() => {
-          setSeleccionadas([]);
-        }, 1000);
+        setPuntaje((prev) => prev - 1);
+        setComboActual(0);
+        setTimeout(() => setSeleccionadas([]), 1000);
       }
     }
   }, [seleccionadas]);
@@ -78,31 +149,33 @@ export default function JuegoMemorama() {
     return (
       <View style={styles.centrado}>
         <ActivityIndicator size="large" color="#FF7675" />
-        <Text>Preparando cartas...</Text>
+        <Text style={styles.textoCarga}>Preparando tu juego...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.titulo}>Memorama Cognitivo</Text>
+      <Text style={styles.titulo}>Memorama de Frutas</Text>
       <Text style={styles.subtitulo}>
-        Pares encontrados: {adivinadas.length / 2}
-        Errores: {error}
+        {mostrandoTodo ? "¡Observa bien las cartas!" : "Encuentra las parejas"}
       </Text>
 
       <FlatList
         data={cartas}
-        numColumns={3} // Ajusta según el tamaño de las cartas
+        numColumns={3}
         keyExtractor={(_, index) => index.toString()}
         contentContainerStyle={styles.grid}
         renderItem={({ item, index }) => {
-          const estaVolteada =
-            seleccionadas.includes(index) || adivinadas.includes(index);
+          // MOSTRAR SI: Es el inicio, está seleccionada o ya se adivinó
+          const estaVisible =
+            mostrandoTodo ||
+            seleccionadas.includes(index) ||
+            adivinadas.includes(index);
           return (
             <MemoramaCard
               image={item.img}
-              estaVolteada={estaVolteada}
+              estaVolteada={estaVisible}
               onClick={() => onClickCarta(index)}
             />
           );
@@ -113,30 +186,20 @@ export default function JuegoMemorama() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F5F6FA",
-    paddingTop: 40,
-  },
-  centrado: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  container: { flex: 1, backgroundColor: "#F5F6FA", paddingTop: 50 },
+  centrado: { flex: 1, justifyContent: "center", alignItems: "center" },
+  textoCarga: { marginTop: 10, fontSize: 16, color: "#636E72" },
   titulo: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "bold",
     textAlign: "center",
     color: "#2D3436",
   },
   subtitulo: {
-    fontSize: 16,
+    fontSize: 18,
     textAlign: "center",
     marginBottom: 20,
     color: "#636E72",
   },
-  grid: {
-    alignItems: "center",
-    paddingBottom: 20,
-  },
+  grid: { alignItems: "center", paddingBottom: 20 },
 });

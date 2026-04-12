@@ -3,7 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { jwtDecode } from "jwt-decode";
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
-import BotonAccion from "../componentes/BotonAccion";
+import BotonAccion from "../_componentes/BotonAccion";
 
 export default function Pantalla() {
   const [rol, setRol] = useState(null);

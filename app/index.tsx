@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import React from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
-import BotonAccion from "./componentes/BotonAccion";
+import BotonAccion from "./_componentes/BotonAccion";
 
 export default function Index() {
   const router = useRouter();

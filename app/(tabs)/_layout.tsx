@@ -1,22 +1,114 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Notifications from "expo-notifications";
 import { router, Tabs } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { jwtDecode } from "jwt-decode";
 import { useEffect, useState } from "react";
+import { ActivityIndicator, Platform, View } from "react-native";
+// Asegúrate de que la ruta coincida con donde creaste tu archivo
+import { programarNotificacionesGlobal } from "../../_utils/notificaciones";
+
+// ==========================================
+// CONFIGURACIÓN GLOBAL DE NOTIFICACIONES
+// ==========================================
+// Esto asegura que la notificación suene y se muestre en pantalla
+// incluso si el abuelito está usando la app en ese momento.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 export default function TabsLayout() {
   const [rol, setRol] = useState(null);
+  const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    const cargarRol = async () => {
-      const token = await SecureStore.getItemAsync("mi_token_jwt");
-      if (token) {
-        const decoded: any = jwtDecode(token);
-        setRol(decoded.rol?.toLowerCase()); // Lo pasamos a minúsculas por seguridad
+    const arrancarApp = async () => {
+      try {
+        // Usamos tu estándar de JWT
+        const token = await SecureStore.getItemAsync("mi_token_jwt");
+        if (token) {
+          const decoded: any = jwtDecode(token);
+          const rolUsuario = decoded.rol?.toLowerCase();
+          setRol(rolUsuario); // Lo pasamos a minúsculas por seguridad
+
+          if (rolUsuario === "persona mayor") {
+            const idPaciente = await SecureStore.getItemAsync("idDelPaciente");
+            if (idPaciente) {
+              sincronizarAlarmasSilenciosamente(idPaciente, token);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error al cargar el rol o sincronizar:", error);
+      } finally {
+        setCargando(false);
       }
     };
-    cargarRol();
+    arrancarApp();
   }, []);
+
+  const sincronizarAlarmasSilenciosamente = async (
+    idPaciente: string,
+    token: string,
+  ) => {
+    try {
+      // 1. Pedimos permisos. Si es la primera vez saldrá un cartel,
+      // si ya dio permiso antes, pasa directo.
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== "granted") return;
+
+      // 2. Configuración obligatoria para Android
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("medicamentos", {
+          name: "Recordatorios de Medicinas",
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#3498db",
+        });
+      }
+
+      // 3. Descargamos la agenda del día
+      // ⚠️ Asegúrate de que esta sea tu IP actual
+      const respuesta = await fetch(
+        `http://192.168.100.38:4000/tomas/${idPaciente}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (respuesta.ok) {
+        const datos = await respuesta.json();
+        // 4. Mandamos los datos a nuestra función para que ponga las alarmas
+        await programarNotificacionesGlobal(datos);
+      }
+    } catch (error) {
+      console.log("Error al sincronizar alarmas en segundo plano:", error);
+    }
+  };
+
+  if (cargando) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#f5f5f5",
+        }}
+      >
+        <ActivityIndicator size="large" color="#3498db" />
+      </View>
+    );
+  }
 
   return (
     <Tabs
@@ -68,11 +160,23 @@ export default function TabsLayout() {
         }}
       />
 
+      <Tabs.Screen
+        name="historial"
+        options={{
+          title: "Historial de Medicamentos",
+          href: rol === "cuidador" ? "/historial" : null,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="time-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
       {/* BOTONES PARA AMBOS ROLES */}
       <Tabs.Screen
         name="medicamentos"
         options={{
-          title: "Medicinas",
+          title: "Agenda Médica",
+          href: rol === "persona mayor" ? "/medicamentos" : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="medkit-outline" size={size} color={color} />
           ),
