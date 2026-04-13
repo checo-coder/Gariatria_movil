@@ -75,7 +75,7 @@ export default function TabsLayout() {
       // 3. Descargamos la agenda del día
       // ⚠️ Asegúrate de que esta sea tu IP actual
       const respuesta = await fetch(
-        `http://192.168.100.38:4000/tomas/${idPaciente}`,
+        `http://192.168.100.13:4000/tomas/${idPaciente}`,
         {
           method: "GET",
           headers: {

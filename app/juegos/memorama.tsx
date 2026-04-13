@@ -156,7 +156,7 @@ export default function JuegoMemorama() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.titulo}>Memorama de Frutas</Text>
+      <Text style={styles.titulo}>Memorama</Text>
       <Text style={styles.subtitulo}>
         {mostrandoTodo ? "¡Observa bien las cartas!" : "Encuentra las parejas"}
       </Text>

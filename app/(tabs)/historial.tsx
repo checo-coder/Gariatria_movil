@@ -1,11 +1,11 @@
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 // Reutilizamos nuestra tarjeta mágica
 import TarjetaMedicina from "../_componentes/TarjetaMedicina";
