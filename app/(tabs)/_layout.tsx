@@ -1,18 +1,12 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
 import { router, Tabs } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { jwtDecode } from "jwt-decode";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
-// Asegúrate de que la ruta coincida con donde creaste tu archivo
+import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
 import { programarNotificacionesGlobal } from "../../_utils/notificaciones";
 
-// ==========================================
-// CONFIGURACIÓN GLOBAL DE NOTIFICACIONES
-// ==========================================
-// Esto asegura que la notificación suene y se muestre en pantalla
-// incluso si el abuelito está usando la app en ese momento.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldPlaySound: true,
@@ -23,18 +17,17 @@ Notifications.setNotificationHandler({
 });
 
 export default function TabsLayout() {
-  const [rol, setRol] = useState(null);
+  const [rol, setRol] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
     const arrancarApp = async () => {
       try {
-        // Usamos tu estándar de JWT
         const token = await SecureStore.getItemAsync("mi_token_jwt");
         if (token) {
           const decoded: any = jwtDecode(token);
           const rolUsuario = decoded.rol?.toLowerCase();
-          setRol(rolUsuario); // Lo pasamos a minúsculas por seguridad
+          setRol(rolUsuario);
 
           if (rolUsuario === "persona mayor") {
             const idPaciente = await SecureStore.getItemAsync("idDelPaciente");
@@ -44,7 +37,7 @@ export default function TabsLayout() {
           }
         }
       } catch (error) {
-        console.error("Error al cargar el rol o sincronizar:", error);
+        console.error("Error al cargar el rol:", error);
       } finally {
         setCargando(false);
       }
@@ -57,25 +50,20 @@ export default function TabsLayout() {
     token: string,
   ) => {
     try {
-      // 1. Pedimos permisos. Si es la primera vez saldrá un cartel,
-      // si ya dio permiso antes, pasa directo.
       const { status } = await Notifications.requestPermissionsAsync();
       if (status !== "granted") return;
 
-      // 2. Configuración obligatoria para Android
       if (Platform.OS === "android") {
         await Notifications.setNotificationChannelAsync("medicamentos", {
           name: "Recordatorios de Medicinas",
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
-          lightColor: "#3498db",
+          lightColor: "#0984E3",
         });
       }
 
-      // 3. Descargamos la agenda del día
-      // ⚠️ Asegúrate de que esta sea tu IP actual
       const respuesta = await fetch(
-        `http://192.168.100.13:4000/tomas/${idPaciente}`,
+        `http://192.168.100.38:4000/tomas/${idPaciente}`,
         {
           method: "GET",
           headers: {
@@ -87,25 +75,17 @@ export default function TabsLayout() {
 
       if (respuesta.ok) {
         const datos = await respuesta.json();
-        // 4. Mandamos los datos a nuestra función para que ponga las alarmas
         await programarNotificacionesGlobal(datos);
       }
     } catch (error) {
-      console.log("Error al sincronizar alarmas en segundo plano:", error);
+      console.log("Error al sincronizar alarmas:", error);
     }
   };
 
   if (cargando) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "#f5f5f5",
-        }}
-      >
-        <ActivityIndicator size="large" color="#3498db" />
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0984E3" />
       </View>
     );
   }
@@ -113,17 +93,29 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#3498db",
-        // Configuración del Header (la barra de arriba)
-        headerStyle: { backgroundColor: "#576a7cff" },
-        headerTitleStyle: { fontWeight: "bold" },
+        tabBarActiveTintColor: "#0984E3",
+        tabBarInactiveTintColor: "#636E72",
+        tabBarShowLabel: false, // Regresamos al look limpio sin texto
+
+        // Esto centra los iconos verticalmente en la barra clásica
+        tabBarItemStyle: {
+          height: 65,
+          justifyContent: "center",
+          alignItems: "center",
+        },
+
+        tabBarStyle: styles.classicTabBar,
+
+        headerStyle: styles.headerStyle,
+        headerTintColor: "#FFFFFF",
+        headerTitleStyle: styles.headerTitle,
         headerRight: () => (
           <Ionicons
             name="settings-outline"
-            size={24}
-            color="black"
-            style={{ marginRight: 15, fontSize: 38 }}
-            onPress={() => router.push("/homepm")} // Ruta a tu pantalla de ajustes
+            size={26}
+            color="white"
+            style={styles.headerIcon}
+            onPress={() => router.push("/homepm")}
           />
         ),
       }}
@@ -133,18 +125,23 @@ export default function TabsLayout() {
         options={{
           title: "Inicio",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="home" size={24} color={color} />
+            <Ionicons name="home" size={28} color={color} />
           ),
         }}
       />
-      {/* Pantallas de cuidadores */}
+
+      {/* ICONOS QUE TE GUSTARON (Mezcla de MCI e Ionicons) */}
       <Tabs.Screen
         name="homecuidador"
         options={{
           title: "Mapa",
-          href: rol === "cuidador" ? "/homecuidador" : null, // Redirige según el rol
+          href: rol === "cuidador" ? "/homecuidador" : null,
           tabBarIcon: ({ color }) => (
-            <Ionicons name="map" size={24} color={color} />
+            <MaterialCommunityIcons
+              name="map-marker-radius"
+              size={30}
+              color={color}
+            />
           ),
         }}
       />
@@ -153,9 +150,9 @@ export default function TabsLayout() {
         name="comunicacio"
         options={{
           title: "Chat",
-          href: rol === "cuidador" ? "/comunicacio" : null, // Redirige según el rol
+          href: rol === "cuidador" ? "/comunicacio" : null,
           tabBarIcon: ({ color }) => (
-            <Ionicons name="chatbubbles" size={24} color={color} />
+            <Ionicons name="chatbubbles" size={28} color={color} />
           ),
         }}
       />
@@ -163,22 +160,25 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="historial"
         options={{
-          title: "Historial de Medicamentos",
+          title: "Reportes",
           href: rol === "cuidador" ? "/historial" : null,
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="time-outline" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons
+              name="clipboard-text-clock"
+              size={28}
+              color={color}
+            />
           ),
         }}
       />
 
-      {/* BOTONES PARA AMBOS ROLES */}
       <Tabs.Screen
         name="medicamentos"
         options={{
-          title: "Agenda Médica",
+          title: "Medicina",
           href: rol === "persona mayor" ? "/medicamentos" : null,
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="medkit-outline" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="pill" size={30} color={color} />
           ),
         }}
       />
@@ -187,36 +187,62 @@ export default function TabsLayout() {
         name="citas"
         options={{
           title: "Citas",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons
-              name="calendar-number-outline"
-              size={size}
-              color={color}
-            />
-          ),
-        }}
-      />
-      {/* Pantallas para personas mayores */}
-      <Tabs.Screen
-        name="evaluaciones"
-        options={{
-          title: "Evaluación",
-          href: rol === "persona mayor" ? "/evaluaciones" : null, // Redirige según el rol
           tabBarIcon: ({ color }) => (
-            <Ionicons name="accessibility-outline" size={24} color={color} />
+            <Ionicons name="calendar" size={28} color={color} />
           ),
         }}
       />
 
-      {/* BOTON DE CONFIGURACION */}
       <Tabs.Screen
-        name="homepm"
+        name="evaluaciones"
         options={{
-          title: "Ajustes",
-          href: null, // <--- ESTO oculta el botón de la barra de abajo
-          headerShown: true, // Pero permite que la pantalla se vea cuando navegues a ella
+          title: "Estado",
+          href: rol === "persona mayor" ? "/evaluaciones" : null,
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="fitness" size={28} color={color} />
+          ),
         }}
       />
+
+      <Tabs.Screen name="homepm" options={{ href: null, title: "Ajustes" }} />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F5F6FA",
+  },
+  // BARRA CLÁSICA (Sin position absolute para no tapar nada)
+  classicTabBar: {
+    backgroundColor: "#f2fbfcff",
+    height: 65,
+    borderTopWidth: 1,
+    borderTopColor: "#F0F0F0",
+
+    // Sombra sutil para separar del contenido
+    elevation: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+
+    // Eliminamos paddings extras
+    paddingBottom: 0,
+  },
+  headerStyle: {
+    backgroundColor: "#2D3436",
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  headerTitle: {
+    fontWeight: "bold",
+    fontSize: 20,
+  },
+  headerIcon: {
+    marginRight: 20,
+  },
+});

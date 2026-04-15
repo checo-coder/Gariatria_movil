@@ -66,6 +66,7 @@ export default function SudokuLocal() {
   ) => {
     try {
       const idCliente = await SecureStore.getItemAsync("idDelPaciente");
+      const token = await SecureStore.getItemAsync("mi_token_jwt");
       const tiempoFin = new Date();
       const segundos = Math.floor(
         (tiempoFin.getTime() - tiempoInicio.getTime()) / 1000,
@@ -84,9 +85,12 @@ export default function SudokuLocal() {
         },
       };
 
-      const respuesta = await fetch(`${API_URL}/juegos/registrar-resultado`, {
+      const respuesta = await fetch(`${API_URL}/api/stats/juegos/registrar`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(body),
       });
 

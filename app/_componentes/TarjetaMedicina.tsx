@@ -1,7 +1,9 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+// 1. IMPORTANTE: Necesitamos el SecureStore para el token
+import * as SecureStore from "expo-secure-store";
 
-// ⚠️ Asegúrate de que esta sea tu IP
 const API_URL = "http://192.168.100.38:4000";
 
 export default function TarjetaMedicina({
@@ -12,8 +14,6 @@ export default function TarjetaMedicina({
   onActualizar: () => void;
 }) {
   const fechaObjeto = new Date(item.fecha_hora_programada);
-
-  // 🔥 LA MAGIA: Comparamos si la fecha/hora actual ya pasó a la fecha programada
   const yaEsHora = new Date() >= fechaObjeto;
 
   const diaTexto = fechaObjeto.toLocaleDateString("es-MX", {
@@ -39,25 +39,40 @@ export default function TarjetaMedicina({
     }
   };
 
+  // 2. CORRECCIÓN: Obtener el token dentro de la función
   const marcarComoTomada = async () => {
     try {
-      const respuesta = await fetch(`${API_URL}/tomas/${item.id_toma}/tomada`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-      });
+      const token = await SecureStore.getItemAsync("mi_token_jwt");
+
+      if (!token) {
+        Alert.alert("Error", "No se encontró una sesión activa.");
+        return;
+      }
+
+      const respuesta = await fetch(
+        `${API_URL}/api/meds/tomas/${item.id_toma}/tomada`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            // 3. ENVIAR EL TOKEN CORRECTAMENTE
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
 
       if (respuesta.ok) {
         Alert.alert(
           "¡Excelente!",
           "Has registrado tu medicamento correctamente.",
         );
-        onActualizar();
+        onActualizar(); // Esto refresca la lista en la pantalla principal
       } else {
-        Alert.alert("Error", "No pudimos registrar la toma, intenta de nuevo.");
+        Alert.alert("Error", "No pudimos registrar la toma.");
       }
     } catch (error) {
-      console.error(error);
-      Alert.alert("Error de red", "Revisa tu conexión a internet.");
+      console.error("Error al marcar toma:", error);
+      Alert.alert("Error de red", "Revisa tu conexión.");
     }
   };
 
@@ -89,33 +104,38 @@ export default function TarjetaMedicina({
           Dosis: <Text style={styles.textoResaltado}>{item.dosis}</Text>
         </Text>
 
-        {item.indicaciones_extra ? (
+        {/* 4. OJO: Revisa si en tu DB es 'indicaciones' o 'indicaciones_extra' */}
+        {item.indicaciones ? (
           <View style={styles.cajaIndicaciones}>
             <Text style={styles.textoIndicaciones}>
               <Text style={{ fontWeight: "bold" }}>Nota: </Text>
-              {item.indicaciones_extra}
+              {item.indicaciones}
             </Text>
           </View>
         ) : null}
 
-        {/* Solo mostrar si es hora de toma */}
         {item.estado_toma === "pendiente" && (
           <TouchableOpacity
-            style={[
-              styles.botonTomar,
-              !yaEsHora && styles.botonBloqueado, // Si no es hora, aplicamos fondo gris
-            ]}
+            style={[styles.botonTomar, !yaEsHora && styles.botonBloqueado]}
             onPress={marcarComoTomada}
-            disabled={!yaEsHora} // Esto anula el clic físicamente en React Native
+            disabled={!yaEsHora}
           >
-            <Text
-              style={[
-                styles.textoBotonTomar,
-                !yaEsHora && styles.textoBloqueado, // Si no es hora, letras grises
-              ]}
-            >
-              {yaEsHora ? "✅ Marcar como tomada" : "⏳ Aún no es hora"}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <MaterialCommunityIcons
+                name={yaEsHora ? "check-circle" : "clock-outline"}
+                size={20}
+                color={yaEsHora ? "#30a862ff" : "#95a5a6"}
+                style={{ marginRight: 8 }}
+              />
+              <Text
+                style={[
+                  styles.textoBotonTomar,
+                  !yaEsHora && styles.textoBloqueado,
+                ]}
+              >
+                {yaEsHora ? "Marcar como tomada" : "Aún no es hora"}
+              </Text>
+            </View>
           </TouchableOpacity>
         )}
       </View>
@@ -125,7 +145,7 @@ export default function TarjetaMedicina({
 
 const styles = StyleSheet.create({
   tarjeta: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#bdecffff",
     borderRadius: 15,
     marginBottom: 20,
     flexDirection: "row",
@@ -143,7 +163,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 15,
     paddingHorizontal: 10,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#f8fafaff",
     borderRightWidth: 1,
     borderRightColor: "#DFE6E9",
     width: 110,

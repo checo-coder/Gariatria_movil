@@ -1,7 +1,6 @@
 import * as Device from "expo-device";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
-import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as TaskManager from "expo-task-manager";
 import { jwtDecode } from "jwt-decode";
@@ -9,154 +8,76 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Platform,
+  AppState,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { io } from "socket.io-client";
 
-// Importación de tus componentes
+// Componentes del proyecto
 import GraficaBarras from "../_componentes/GraficaBarras";
 import GraficaCalor from "../_componentes/GraficaCalor";
 import GraficaRosca from "../_componentes/GraficaRosca";
 import MenuJuegos from "../_componentes/MenuJuegos";
 
 // =====================================================================
-// 1. CONFIGURACIÓN GLOBAL
+// 1. CONFIGURACIÓN Y TAREA DE FONDO
 // =====================================================================
-const API_URL = "http://192.168.100.38:4000"; // Tu IP
-const socket = io(API_URL);
+const API_URL = "http://192.168.100.38:4000";
 const TAREA_RASTREO_ABUELITO = "TAREA_RASTREO_ABUELITO";
 
-// =====================================================================
-// 2. DEFINICIÓN DE LA TAREA EN SEGUNDO PLANO
-// =====================================================================
+let ultimaLat = 0;
+let ultimaLon = 0;
+
 TaskManager.defineTask(TAREA_RASTREO_ABUELITO, async ({ data, error }) => {
-  console.log("🔥 ¡TAREA DE FONDO DESPERTÓ!");
-
-  if (error) {
-    console.error("❌ Error en tarea de fondo:", error);
-    return;
-  }
-
+  if (error) return;
   if (data) {
     const { locations } = data as any;
     const latitud = locations[0].coords.latitude;
     const longitud = locations[0].coords.longitude;
 
+    if (latitud === ultimaLat && longitud === ultimaLon) return;
+
     try {
       const token = await SecureStore.getItemAsync("mi_token_jwt");
       if (!token) return;
-
       const decoded: any = jwtDecode(token);
-      const idPaciente = decoded.idUsuario;
+
+      ultimaLat = latitud;
+      ultimaLon = longitud;
 
       await fetch(`${API_URL}/ubicacion-fondo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id_paciente: idPaciente,
-          latitud: latitud,
-          longitud: longitud,
+          id_paciente: decoded.idUsuario,
+          latitud,
+          longitud,
         }),
       });
-      console.log(`🌐 [Fondo] Coordenada enviada: ${latitud}, ${longitud}`);
     } catch (e) {
-      console.error("❌ No se pudo enviar el GPS de fondo:", e);
+      console.log("Error en envío de fondo");
     }
   }
 });
 
 // =====================================================================
-// 3. DEFINICIÓN DE TIPOS
-// =====================================================================
-interface Estadistica {
-  date: string;
-  count: number;
-}
-
-interface MedStats {
-  estado: string;
-  cantidad: number;
-}
-
-// =====================================================================
-// 4. COMPONENTE PRINCIPAL
+// 2. COMPONENTE PRINCIPAL
 // =====================================================================
 export default function PantallaPrincipal() {
   const [rol, setRol] = useState<string | null>(null);
   const [id, setId] = useState<string | null>(null);
   const [nombre, setNombre] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
-
-  // Estados GPS Paciente
   const [rastreoActivo, setRastreoActivo] = useState(false);
-
-  // Estados de datos para el Cuidador
-  const [estadisticas, setEstadisticas] = useState<Estadistica[]>([]);
-  const [medsHoy, setMedsHoy] = useState<MedStats[]>([]);
+  const [estadisticas, setEstadisticas] = useState<any[]>([]);
+  const [medsHoy, setMedsHoy] = useState<any[]>([]);
   const [cargandoEstadisticas, setCargandoEstadisticas] = useState(true);
 
-  const router = useRouter();
-
-  // =====================================================================
-  // FUNCIÓN: REGISTRAR PUSH TOKEN
-  // =====================================================================
-  const registrarParaNotificacionesPush = async (idUsuario: string) => {
-    try {
-      if (!Device.isDevice) {
-        console.log("Las notificaciones push no funcionan en el simulador");
-        return;
-      }
-
-      const { status: existingStatus } =
-        await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-
-      if (existingStatus !== "granted") {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus !== "granted") {
-        console.log("¡No se dio permiso para las notificaciones!");
-        return;
-      }
-
-      // Obtener el token de Expo
-      // Nota: Si Expo te pide projectId, ponlo aquí adentro: { projectId: "tu-id" }
-      const tokenData = await Notifications.getExpoPushTokenAsync();
-      const token = tokenData.data;
-      console.log("📲 Push Token obtenido:", token);
-
-      // Enviar el token a PostgreSQL
-      await fetch(`${API_URL}/guardar-token`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id_cliente: idUsuario,
-          token: token,
-        }),
-      });
-
-      if (Platform.OS === "android") {
-        Notifications.setNotificationChannelAsync("default", {
-          name: "Alertas de Seguridad",
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: "#FF231F7C",
-        });
-      }
-    } catch (error) {
-      console.error("Error al registrar notificaciones:", error);
-    }
-  };
-
-  // --- EFECTO 1: OBTENER DATOS DEL USUARIO Y REGISTRAR TOKEN ---
+  // --- EFECTO: CARGAR SESIÓN ---
   useEffect(() => {
-    const obtenerDatosToken = async () => {
+    const cargarSesion = async () => {
       try {
         const token = await SecureStore.getItemAsync("mi_token_jwt");
         if (token) {
@@ -165,19 +86,33 @@ export default function PantallaPrincipal() {
           setId(decoded.idUsuario);
           setNombre(decoded.nombre);
 
-          // 🔥 Mandamos a guardar la dirección de este celular
-          registrarParaNotificacionesPush(decoded.idUsuario);
+          // Registrar Notificaciones
+          if (Device.isDevice) {
+            const { status } = await Notifications.requestPermissionsAsync();
+            if (status === "granted") {
+              const tokenPush = (await Notifications.getExpoPushTokenAsync())
+                .data;
+              await fetch(`${API_URL}/guardar-token`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  id_cliente: decoded.idUsuario,
+                  token: tokenPush,
+                }),
+              });
+            }
+          }
         }
-      } catch (error) {
-        console.error("Error al leer token:", error);
+      } catch (e) {
+        console.error("Error al cargar sesión", e);
       } finally {
         setCargando(false);
       }
     };
-    obtenerDatosToken();
+    cargarSesion();
   }, []);
 
-  // --- EFECTO 2: RASTREO GPS AVANZADO (Solo si es Persona Mayor) ---
+  // --- EFECTO: INICIAR GPS ---
   useEffect(() => {
     if (rol === "Persona Mayor" && id) {
       iniciarRastreoSeguro();
@@ -185,81 +120,80 @@ export default function PantallaPrincipal() {
   }, [rol, id]);
 
   const iniciarRastreoSeguro = async () => {
-    try {
-      const { status: fgStatus } =
-        await Location.requestForegroundPermissionsAsync();
-      if (fgStatus !== "granted") {
-        Alert.alert("Atención", "Necesitamos tu permiso de ubicación.");
-        return;
-      }
+    // 🛡️ REGLA DE ORO: No iniciar si la app no está en primer plano
+    if (AppState.currentState !== "active") {
+      console.log("Bloqueo preventivo: App en background");
+      return;
+    }
 
-      const { status: bgStatus } =
-        await Location.requestBackgroundPermissionsAsync();
-      if (bgStatus !== "granted") {
+    try {
+      const { status: fg } = await Location.requestForegroundPermissionsAsync();
+      const { status: bg } = await Location.requestBackgroundPermissionsAsync();
+
+      if (fg !== "granted" || bg !== "granted") {
         Alert.alert(
-          "Permiso necesario",
-          "Selecciona 'Permitir todo el tiempo'.",
+          "Permisos necesarios",
+          "Por favor activa 'Permitir siempre' la ubicación.",
         );
         return;
       }
 
-      const yaEstaCorriendo = await TaskManager.isTaskRegisteredAsync(
+      const yaRegistrada = await TaskManager.isTaskRegisteredAsync(
         TAREA_RASTREO_ABUELITO,
       );
 
-      // Limpiamos tarea zombi si existe
-      if (yaEstaCorriendo) {
-        console.log("🧹 Limpiando tarea zombi anterior...");
-        await Location.stopLocationUpdatesAsync(TAREA_RASTREO_ABUELITO);
+      // Si ya está activa, no la reiniciamos para evitar errores de Android
+      if (yaRegistrada) {
+        console.log("El rastreo ya está en marcha.");
+        setRastreoActivo(true);
+        return;
       }
 
-      // Encendemos el motor (Distancia 0 para pruebas)
       await Location.startLocationUpdatesAsync(TAREA_RASTREO_ABUELITO, {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 5000,
-        distanceInterval: 0,
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 15000,
+        distanceInterval: 10,
+        pausesUpdatesAutomatically: false,
         showsBackgroundLocationIndicator: true,
         foregroundService: {
-          notificationTitle: "Protección Activa",
-          notificationBody: "Compartiendo ubicación por tu seguridad.",
-          notificationColor: "#2ecc71",
+          notificationTitle: "OldFit: Seguridad Activa",
+          notificationBody: "Tu cuidador puede ver tu ubicación.",
+          notificationColor: "#3498db",
         },
       });
-      console.log("✅ Motor de rastreo REINICIADO y ENCENDIDO");
+
       setRastreoActivo(true);
+      console.log("GPS iniciado con éxito");
     } catch (err) {
-      console.error("Error al iniciar rastreo seguro:", err);
+      console.error("Error GPS:", err);
     }
   };
 
-  // --- EFECTO 3: CARGAR ESTADÍSTICAS (Solo si es Cuidador) ---
+  // --- EFECTO: CARGAR PANEL CUIDADOR ---
   useEffect(() => {
-    if (!id || rol !== "cuidador") return;
-
-    const cargarDatosPanel = async () => {
-      try {
-        setCargandoEstadisticas(true);
-
-        const [resGral, resMeds] = await Promise.all([
-          fetch(`${API_URL}/estadisticas/${id}`),
-          fetch(`${API_URL}/estadisticas/medicamentos-hoy/${id}`),
-        ]);
-
-        const datosGral = resGral.ok ? await resGral.json() : [];
-        const datosMeds = resMeds.ok ? await resMeds.json() : [];
-
-        setEstadisticas(Array.isArray(datosGral) ? datosGral : []);
-        setMedsHoy(Array.isArray(datosMeds) ? datosMeds : []);
-      } catch (e) {
-        console.error("Error cargando estadísticas:", e);
-        setEstadisticas([]);
-        setMedsHoy([]);
-      } finally {
-        setCargandoEstadisticas(false);
-      }
-    };
-
-    cargarDatosPanel();
+    if (id && rol === "cuidador") {
+      const cargarDatosCuidador = async () => {
+        try {
+          const token = await SecureStore.getItemAsync("mi_token_jwt");
+          setCargandoEstadisticas(true);
+          const headers = {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          };
+          const [resGral, resMeds] = await Promise.all([
+            fetch(`${API_URL}/api/stats/actividad/${id}`, { headers }),
+            fetch(`${API_URL}/api/stats/medicamentos-hoy/${id}`, { headers }),
+          ]);
+          if (resGral.ok) setEstadisticas(await resGral.json());
+          if (resMeds.ok) setMedsHoy(await resMeds.json());
+        } catch (e) {
+          console.error("Error cargando estadísticas");
+        } finally {
+          setCargandoEstadisticas(false);
+        }
+      };
+      cargarDatosCuidador();
+    }
   }, [id, rol]);
 
   if (cargando) {
@@ -273,7 +207,6 @@ export default function PantallaPrincipal() {
   return (
     <View style={styles.flex}>
       {rol === "Persona Mayor" ? (
-        // --- VISTA PACIENTE ---
         <View style={styles.contenedor}>
           <Text style={styles.tituloBienvenida}>¡Hola, {nombre}!</Text>
           <Text style={styles.subtitulo}>Tus ejercicios de hoy:</Text>
@@ -287,10 +220,9 @@ export default function PantallaPrincipal() {
           )}
         </View>
       ) : rol === "cuidador" ? (
-        // --- VISTA CUIDADOR ---
         <ScrollView contentContainerStyle={styles.contenedorCuidador}>
           <Text style={styles.tituloBienvenida}>Panel del Cuidador</Text>
-          <Text style={styles.subtitulo}>Paciente: {nombre}</Text>
+          <Text style={styles.subtitulo}>Monitoreando a: {nombre}</Text>
 
           <GraficaRosca datos={medsHoy} cargando={cargandoEstadisticas} />
 
@@ -304,7 +236,7 @@ export default function PantallaPrincipal() {
 
           <View style={styles.seccion}>
             <GraficaCalor
-              titulo="Consistencia de Actividad"
+              titulo="Consistencia Mensual"
               datos={estadisticas}
               cargando={cargandoEstadisticas}
             />
@@ -312,7 +244,7 @@ export default function PantallaPrincipal() {
         </ScrollView>
       ) : (
         <View style={styles.centrado}>
-          <Text>Error de sesión. Por favor, vuelve a entrar.</Text>
+          <Text>Error de perfil. Por favor, reasigna tu rol.</Text>
         </View>
       )}
     </View>
@@ -322,21 +254,24 @@ export default function PantallaPrincipal() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: "#F5F6FA" },
   centrado: { flex: 1, justifyContent: "center", alignItems: "center" },
-  contenedor: { flex: 1, padding: 20, alignItems: "center" },
+  contenedor: { flex: 1, padding: 20 },
   contenedorCuidador: { padding: 20, alignItems: "center" },
   tituloBienvenida: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#2c3e50",
-    marginTop: 20,
+    marginTop: 10,
   },
   subtitulo: { fontSize: 16, color: "#7f8c8d", marginBottom: 20 },
-  seccion: { width: "100%", marginTop: 10 },
+  seccion: { width: "100%", marginTop: 15 },
   badgeRastreo: {
     marginTop: 20,
-    backgroundColor: "#dff9fb",
-    padding: 10,
-    borderRadius: 20,
+    backgroundColor: "#e3f2fd",
+    padding: 12,
+    borderRadius: 25,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#bbdefb",
   },
-  textoBadge: { color: "#0097e6", fontWeight: "bold", fontSize: 12 },
+  textoBadge: { color: "#1976d2", fontWeight: "bold", fontSize: 13 },
 });

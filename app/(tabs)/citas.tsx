@@ -26,11 +26,18 @@ export default function PantallaCitas() {
   const obtenerCitas = async () => {
     try {
       // Usamos idDelPaciente que es el que guardaste en el login
+      const token = await SecureStore.getItemAsync("mi_token_jwt");
       const idCliente = await SecureStore.getItemAsync("idDelPaciente");
       console.log("ID del cliente obtenido del SecureStore:", idCliente);
       if (!idCliente) return;
 
-      const respuesta = await fetch(`${API_URL}/citas/${idCliente}`);
+      const respuesta = await fetch(`${API_URL}/api/citas/${idCliente}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
       const datos = await respuesta.json();
 
       if (respuesta.ok) {

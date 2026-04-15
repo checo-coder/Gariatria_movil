@@ -33,7 +33,7 @@ export default function PantallaMedicamentos() {
         return;
       }
 
-      const respuesta = await fetch(`${API_URL}/tomas/${idPaciente}`, {
+      const respuesta = await fetch(`${API_URL}/api/meds/tomas/${idPaciente}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

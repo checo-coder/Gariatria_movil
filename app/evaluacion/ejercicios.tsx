@@ -27,9 +27,13 @@ export default function PantallaEjercicio() {
   const guardarResultado = async () => {
     try {
       const idCliente = await SecureStore.getItemAsync("idDelPaciente");
-      const respuesta = await fetch(`${API_URL}/evaluacion-fisica`, {
+      const token = await SecureStore.getItemAsync("mi_token_jwt");
+      const respuesta = await fetch(`${API_URL}/api/stats/evaluacion-fisica`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           id_cliente: idCliente,
           nombre_ejercicio: config.nombre,

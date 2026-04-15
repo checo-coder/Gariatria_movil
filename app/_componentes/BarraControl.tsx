@@ -1,10 +1,11 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
 import {
-    ActivityIndicator,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 // 1. DEFINIMOS LA ESTRUCTURA DE LOS DATOS (INTERFACE)
@@ -38,7 +39,12 @@ export default function BarraControl({
     return (
       <View style={styles.barraFlotante}>
         <TouchableOpacity style={styles.botonPildora} onPress={onIniciar}>
-          <Text style={styles.iconoBoton}>✏️</Text>
+          <MaterialCommunityIcons
+            name={zonaGuardada ? "pencil" : "map-marker-plus"}
+            size={22}
+            color="#6ec6e6ff" // O el color que uses en tu CSS
+          />
+          <Text style={styles.iconoBoton}></Text>
           <Text style={styles.textoBotonPildora}>
             {zonaGuardada ? "Editar Zona Segura" : "Crear Zona Segura"}
           </Text>
@@ -47,7 +53,11 @@ export default function BarraControl({
           <>
             <View style={styles.divisor} />
             <TouchableOpacity style={styles.botonIcono} onPress={onEliminar}>
-              <Text style={styles.iconoBoton}>🗑️</Text>
+              <MaterialCommunityIcons
+                name="delete-outline"
+                size={24}
+                color="#FF000080" // Un rojo suave para indicar peligro/borrar
+              />
             </TouchableOpacity>
           </>
         )}

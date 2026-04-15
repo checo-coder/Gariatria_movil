@@ -28,6 +28,8 @@ export default function PantallaInicio() {
       setCargando(true);
       const token = await SecureStore.getItemAsync("mi_token_jwt");
       const idPaciente = await SecureStore.getItemAsync("idDelPaciente");
+      console.log("DEPURACIÓN -> Token:", token ? "Recibido" : "FALTA");
+      console.log("DEPURACIÓN -> ID Paciente:", idPaciente);
 
       if (!token || !idPaciente) return;
 
@@ -38,11 +40,14 @@ export default function PantallaInicio() {
 
       // Disparamos las dos peticiones a Node simultáneamente para que sea más rápido
       const [resProximas, resHistorial] = await Promise.all([
-        fetch(`${API_URL}/tomas/proximas/${idPaciente}`, {
+        fetch(`${API_URL}/api/meds/tomas/${idPaciente}`, {
           method: "GET",
           headers,
         }),
-        fetch(`${API_URL}/historial/${idPaciente}`, { method: "GET", headers }),
+        fetch(`${API_URL}/api/meds/historial/${idPaciente}`, {
+          method: "GET",
+          headers,
+        }),
       ]);
 
       if (resProximas.ok && resHistorial.ok) {

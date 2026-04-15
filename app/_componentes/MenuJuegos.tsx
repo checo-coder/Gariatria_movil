@@ -65,29 +65,36 @@ export default function MenuJuegos() {
 }
 
 const styles = StyleSheet.create({
-  contenedor: { padding: 20 },
+  contenedor: {
+    width: "100%",
+    marginTop: 10,
+    // Quitamos el padding de aquí porque el padre ya lo tiene
+  },
   titulo: {
     fontSize: 22,
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 20,
+    color: "#2c3e50",
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    justifyContent: "space-between", // Separa los botones a los extremos
+    width: "100%",
   },
   boton: {
-    width: width * 0.4, // Casi la mitad de la pantalla
-    height: width * 0.4,
+    width: "48%", // El 48% asegura que quepan 2 con un hueco al centro
+    aspectRatio: 1,
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
-    elevation: 5, // Sombra en Android
-    shadowColor: "#000", // Sombra en iOS
+    marginBottom: 15,
+    elevation: 4,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   textoBoton: {
     color: "white",

@@ -37,7 +37,7 @@ export default function JuegoMemorama() {
   const router = useRouter();
 
   useEffect(() => {
-    fetch(`${API_URL}/memoria`)
+    fetch(`${API_URL}/api/stats/juegos/memoria`)
       .then((response) => response.json())
       .then((data) => {
         setCartas(data.cards);
@@ -60,6 +60,7 @@ export default function JuegoMemorama() {
   ) => {
     try {
       const idCliente = await SecureStore.getItemAsync("idDelPaciente");
+      const token = await SecureStore.getItemAsync("mi_token_jwt");
       const tiempoFin = new Date();
       const segundos = Math.floor(
         (tiempoFin.getTime() - tiempoInicio.getTime()) / 1000,
@@ -75,9 +76,12 @@ export default function JuegoMemorama() {
         detalles: { max_combo: maxCombo, finalizo: true },
       };
 
-      const respuesta = await fetch(`${API_URL}/juegos/registrar-resultado`, {
+      const respuesta = await fetch(`${API_URL}/api/stats/juegos/registrar`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(body),
       });
 

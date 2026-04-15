@@ -51,7 +51,13 @@ export default function PantallaMapa() {
 
   const cargarZonaSegura = async (id: string) => {
     try {
-      const res = await fetch(`${API_URL}/paciente/zona-segura/${id}`);
+      const token = await SecureStore.getItemAsync("mi_token_jwt");
+      const res = await fetch(`${API_URL}/api/gps/zona/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
       if (res.ok) {
         const data = await res.json();
         setZonaGuardada(data);
@@ -92,9 +98,13 @@ export default function PantallaMapa() {
     if (!idPaciente || !zonaBorrador) return;
     setProcesando(true);
     try {
-      const res = await fetch(`${API_URL}/paciente/configurar-zona`, {
+      const token = await SecureStore.getItemAsync("mi_token_jwt");
+      const res = await fetch(`${API_URL}/api/gps/configurar`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           id_paciente: idPaciente,
           lat: zonaBorrador.latitude,
@@ -124,10 +134,13 @@ export default function PantallaMapa() {
           if (!idPaciente) return;
           setProcesando(true);
           try {
-            const res = await fetch(
-              `${API_URL}/paciente/zona-segura/${idPaciente}`,
-              { method: "DELETE" },
-            );
+            const token = await SecureStore.getItemAsync("mi_token_jwt");
+            const res = await fetch(`${API_URL}/api/gps/zona/${idPaciente}`, {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
             if (res.ok) {
               setZonaGuardada(null);
               setZonaBorrador(null);

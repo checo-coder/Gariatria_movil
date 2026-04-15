@@ -57,8 +57,16 @@ export default function MenuEvaluacion() {
   const cargarUltimasFechas = async () => {
     try {
       const idCliente = await SecureStore.getItemAsync("idDelPaciente");
+      const token = await SecureStore.getItemAsync("mi_token_jwt");
       const respuesta = await fetch(
-        `${API_URL}/evaluaciones/ultimo/${idCliente}`,
+        `${API_URL}/api/stats/evaluaciones/ultimo/${idCliente}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
       );
       if (respuesta.ok) {
         const datos = await respuesta.json();
