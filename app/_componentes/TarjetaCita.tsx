@@ -1,9 +1,19 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-export default function TarjetaCita({ cita }: { cita: any }) {
-  // Formateamos la fecha que viene de TIMESTAMPTZ
+interface TarjetaCitaProps {
+  cita: any;
+  rol: string | null;
+  onCancelar: (id: number) => void;
+}
+
+export default function TarjetaCita({
+  cita,
+  rol,
+  onCancelar,
+}: TarjetaCitaProps) {
+  // Formateamos la fecha
   const fechaObj = new Date(cita.fecha);
   const dia = fechaObj.toLocaleDateString("es-MX", {
     weekday: "short",
@@ -16,16 +26,45 @@ export default function TarjetaCita({ cita }: { cita: any }) {
     hour12: true,
   });
 
+  const confirmarCancelacion = () => {
+    Alert.alert(
+      "Cancelar Cita",
+      "¿Estás seguro de que deseas cancelar esta consulta médica?",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Sí, cancelar",
+          style: "destructive",
+          onPress: () => onCancelar(cita.id_cita),
+        },
+      ],
+    );
+  };
+
   return (
     <View style={styles.card}>
       <View style={styles.header}>
         <View style={styles.iconoCirculo}>
           <Ionicons name="calendar-outline" size={24} color="#3498db" />
         </View>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.textoDia}>{dia}</Text>
           <Text style={styles.textoHora}>{hora}</Text>
         </View>
+
+        {/* BOTÓN ELIMINAR: Solo para cuidadores */}
+        {rol === "cuidador" && (
+          <TouchableOpacity
+            onPress={confirmarCancelacion}
+            style={styles.btnEliminar}
+          >
+            <MaterialCommunityIcons
+              name="calendar-remove"
+              size={24}
+              color="#e74c3c"
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.cuerpo}>
@@ -78,20 +117,39 @@ const styles = StyleSheet.create({
     color: "#2D3436",
     textTransform: "capitalize",
   },
-  textoHora: { fontSize: 14, color: "#3498db", fontWeight: "600" },
-  cuerpo: { gap: 5 },
+  textoHora: { fontSize: 14, color: "#636E72", marginTop: 2 },
+  btnEliminar: {
+    padding: 8,
+    backgroundColor: "#FDECEA",
+    borderRadius: 10,
+  },
+  cuerpo: { marginTop: 5 },
   etiqueta: {
     fontSize: 12,
     color: "#B2BEC3",
-    fontWeight: "bold",
+    fontWeight: "600",
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   razon: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#2D3436",
-    marginBottom: 10,
+    marginTop: 4,
+    fontWeight: "500",
+    lineHeight: 22,
+  },
+  doctorFila: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 15,
+    backgroundColor: "#F8F9FA",
+    padding: 10,
+    borderRadius: 8,
+  },
+  nombreDoctor: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#636E72",
     fontWeight: "500",
   },
-  doctorFila: { flexDirection: "row", alignItems: "center", gap: 6 },
-  nombreDoctor: { fontSize: 15, color: "#636E72" },
 });

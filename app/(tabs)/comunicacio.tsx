@@ -1,5 +1,5 @@
 import * as SecureStore from "expo-secure-store";
-import { ChevronLeft, Send, User } from "lucide-react-native";
+import { jwtDecode } from "jwt-decode";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -7,30 +7,32 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { io, Socket } from "socket.io-client";
 
-// 1. INTERFACES PARA TYPESCRIPT
+// --- IMPORTACIÓN DE COMPONENTES MODULARES ---
+import { ChatHeader } from "../_componentes/ChatHeader";
+import { ChatInput } from "../_componentes/ChatInput";
+import { MensajeBurbuja } from "../_componentes/MensajeBurbuja";
+
+// 1. INTERFACES
 interface Mensaje {
   id_mensaje?: number;
   id_conversacion: number;
   id_remitente?: number;
-  tipo_remitente: "cuidador" | "geriatra" | "Persona Mayor";
+  tipo_remitente: string;
   contenido_texto: string;
-  fecha_envio?: string | Date;
+  fechaEnvio?: string | Date;
 }
 
 interface Medico {
   id_geriatra: number;
   nombre: string;
+  apellidop: string;
+  apellidom: string;
+  cedula: string;
 }
 
 const API_URL = "http://192.168.100.38:4000";
@@ -40,27 +42,31 @@ export default function ChatScreen() {
   const [nuevoMensaje, setNuevoMensaje] = useState("");
   const [idChat, setIdChat] = useState<number | null>(null);
   const [medico, setMedico] = useState<Medico | null>(null);
+  const [rolUsuario, setRolUsuario] = useState<string>("");
   const [cargando, setCargando] = useState(true);
 
   const socket = useRef<Socket | null>(null);
   const flatListRef = useRef<FlatList>(null);
-  const insets = useSafeAreaInsets(); // 🚀 Para calcular espacios del notch
 
   useEffect(() => {
-    const inicializarTodo = async () => {
+    const inicializarChat = async () => {
       try {
         const token = await SecureStore.getItemAsync("mi_token_jwt");
         if (!token) return;
 
-        // A. Obtener médico asignado
+        // A. Decodificar mi rol para saber de qué lado poner mis burbujas
+        const decoded: any = jwtDecode(token);
+        setRolUsuario(decoded.rol);
+
+        // B. Obtener mi Geriatra (usando la nueva ruta de asignación)
         const resMed = await fetch(`${API_URL}/api/chat/mi-geriatra`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!resMed.ok) throw new Error("No médico");
+        if (!resMed.ok) throw new Error("No se encontró médico");
         const datosMed = await resMed.json();
         setMedico(datosMed);
 
-        // B. Obtener ID de conversación
+        // C. Obtener/Crear conversación
         const resChat = await fetch(
           `${API_URL}/api/chat/conversacion/${datosMed.id_geriatra}`,
           {
@@ -70,7 +76,7 @@ export default function ChatScreen() {
         const datosChat = await resChat.json();
         setIdChat(datosChat.id_conversacion);
 
-        // C. Cargar historial
+        // D. Cargar Historial
         const resMsgs = await fetch(
           `${API_URL}/api/chat/mensajes/${datosChat.id_conversacion}`,
           {
@@ -80,209 +86,124 @@ export default function ChatScreen() {
         const historial = await resMsgs.json();
         setMensajes(historial);
 
-        // D. Conectar Socket
+        // E. Conexión Real-Time vía Sockets
         socket.current = io(API_URL);
         socket.current.emit("unirse-chat", datosChat.id_conversacion);
+
         socket.current.on("recibir-mensaje", (msg: Mensaje) => {
           setMensajes((prev) => [...prev, msg]);
         });
       } catch (error) {
-        console.error("Error:", error);
+        console.error("Error inicializando chat:", error);
       } finally {
         setCargando(false);
       }
     };
 
-    inicializarTodo();
+    inicializarChat();
+
+    // Limpieza al salir de la pantalla
     return () => {
-      if (socket.current) socket.current.disconnect();
+      if (socket.current) {
+        socket.current.disconnect();
+      }
     };
   }, []);
 
-  const enviarMensaje = async () => {
+  const manejarEnvio = async () => {
     if (!nuevoMensaje.trim() || !idChat || !socket.current) return;
+
     try {
       const token = await SecureStore.getItemAsync("mi_token_jwt");
-      const dataMsg: Mensaje = {
+
+      const objetoMensaje = {
         id_conversacion: idChat,
         contenido_texto: nuevoMensaje,
-        tipo_remitente: "cuidador",
+        tipo_remitente: rolUsuario, // "cuidador" o "Persona Mayor"
       };
 
+      // 1. Guardar en Base de Datos
       const res = await fetch(`${API_URL}/api/chat/enviar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(dataMsg),
+        body: JSON.stringify(objetoMensaje),
       });
 
       const mensajeGuardado = await res.json();
+
+      // 2. Notificar por Socket a los demás
       socket.current.emit("enviar-mensaje", mensajeGuardado);
-      setNuevoMensaje("");
+
+      setNuevoMensaje(""); // Limpiar input
     } catch (error) {
-      console.error(error);
+      console.error("Error al enviar mensaje:", error);
     }
   };
 
-  if (cargando)
+  if (cargando) {
     return (
       <View style={styles.centrado}>
         <ActivityIndicator size="large" color="#3498db" />
       </View>
     );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
-        // 🚀 AJUSTE CLAVE: Si se sigue tapando, sube este número a 100 o 110
-        keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 100}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 170 : 90}
       >
-        {/* Header Compacto */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn}>
-            <ChevronLeft color="#2c3e50" size={24} />
-          </TouchableOpacity>
-          <View style={styles.avatarMini}>
-            <User color="white" size={16} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              Dr. {medico?.nombre}
-            </Text>
-            <Text style={styles.headerSub}>En línea</Text>
-          </View>
-        </View>
+        {/* Componente Modular: Header con datos del médico */}
+        <ChatHeader medico={medico} />
 
-        {/* Lista de Mensajes */}
+        {/* Lista de Mensajes con scroll automático al final */}
         <FlatList
           ref={flatListRef}
           data={mensajes}
-          keyExtractor={(_, index) => index.toString()}
-          contentContainerStyle={styles.lista}
-          style={{ flex: 1 }} // Obliga a la lista a ocupar el espacio y comprimirse
+          keyExtractor={(item, index) =>
+            item.id_mensaje?.toString() || index.toString()
+          }
+          contentContainerStyle={styles.listaScroll}
           onContentSizeChange={() =>
             flatListRef.current?.scrollToEnd({ animated: true })
           }
           onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
-          renderItem={({ item }) => {
-            const esMio = item.tipo_remitente === "cuidador";
-            return (
-              <View style={[styles.burbuja, esMio ? styles.mia : styles.otra]}>
-                <Text
-                  style={[
-                    styles.textoMsg,
-                    esMio ? styles.textoMio : styles.textoOtro,
-                  ]}
-                >
-                  {item.contenido_texto}
-                </Text>
-              </View>
-            );
-          }}
+          renderItem={({ item }) => (
+            <MensajeBurbuja
+              item={item}
+              esMio={item.tipo_remitente === rolUsuario}
+            />
+          )}
         />
 
-        {/* Barra de Entrada (Input) */}
-        <View style={styles.inputWrapper}>
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="Escribe un mensaje..."
-              value={nuevoMensaje}
-              onChangeText={setNuevoMensaje}
-              multiline
-            />
-            <TouchableOpacity
-              style={[
-                styles.sendBtn,
-                {
-                  backgroundColor: nuevoMensaje.trim() ? "#3498db" : "#bdc3c7",
-                },
-              ]}
-              onPress={enviarMensaje}
-              disabled={!nuevoMensaje.trim()}
-            >
-              <Send color="white" size={18} />
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* Componente Modular: Barra de entrada de texto */}
+        <ChatInput
+          mensaje={nuevoMensaje}
+          setMensaje={setNuevoMensaje}
+          onSend={manejarEnvio}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f7fb" },
-  centrado: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 15,
-    paddingVertical: 8, // 👈 Altura reducida
-    backgroundColor: "white",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    elevation: 2,
-  },
-  backBtn: { marginRight: 10 },
-  avatarMini: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#3498db",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  headerTitle: { fontSize: 16, fontWeight: "bold", color: "#2c3e50" },
-  headerSub: { fontSize: 11, color: "#27ae60" },
-  lista: { paddingHorizontal: 15, paddingVertical: 15 },
-  burbuja: { maxWidth: "85%", padding: 12, borderRadius: 18, marginBottom: 8 },
-  mia: {
-    alignSelf: "flex-end",
-    backgroundColor: "#3498db",
-    borderBottomRightRadius: 2,
-  },
-  otra: {
-    alignSelf: "flex-start",
-    backgroundColor: "white",
-    borderWidth: 1,
-    borderColor: "#e1e8ed",
-    borderBottomLeftRadius: 2,
-  },
-  textoMsg: { fontSize: 15, lineHeight: 20 },
-  textoMio: { color: "white" },
-  textoOtro: { color: "#333" },
-  inputWrapper: {
-    backgroundColor: "white",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f1f2f6",
-    borderRadius: 25,
-    paddingHorizontal: 12,
-  },
-  input: {
+  container: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    maxHeight: 100,
-    fontSize: 16,
+    backgroundColor: "#F5F7FB",
   },
-  sendBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  centrado: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 5,
+  },
+  listaScroll: {
+    paddingHorizontal: 15,
+    paddingVertical: 20,
   },
 });

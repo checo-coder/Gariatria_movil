@@ -50,6 +50,7 @@ export default function TabsLayout() {
     token: string,
   ) => {
     try {
+      console.log("🔍 Intentando sincronizar para paciente:", idPaciente);
       const { status } = await Notifications.requestPermissionsAsync();
       if (status !== "granted") return;
 
@@ -63,7 +64,7 @@ export default function TabsLayout() {
       }
 
       const respuesta = await fetch(
-        `http://192.168.100.38:4000/tomas/${idPaciente}`,
+        `http://192.168.100.38:4000/api/meds/tomas/${idPaciente}`,
         {
           method: "GET",
           headers: {
@@ -205,6 +206,14 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen name="homepm" options={{ href: null, title: "Ajustes" }} />
+
+      <Tabs.Screen
+        name="reportes"
+        options={{
+          href: null, // 🔥 Esto es lo que quita el botón vacío del menú
+          title: "Historial de Reportes", // Opcional: título del encabezado
+        }}
+      />
     </Tabs>
   );
 }

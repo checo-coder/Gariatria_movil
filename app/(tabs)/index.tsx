@@ -1,17 +1,22 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Device from "expo-device";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
+import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as TaskManager from "expo-task-manager";
 import { jwtDecode } from "jwt-decode";
 import { useEffect, useState } from "react";
+
 import {
   ActivityIndicator,
   Alert,
   AppState,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -74,6 +79,8 @@ export default function PantallaPrincipal() {
   const [estadisticas, setEstadisticas] = useState<any[]>([]);
   const [medsHoy, setMedsHoy] = useState<any[]>([]);
   const [cargandoEstadisticas, setCargandoEstadisticas] = useState(true);
+  const [ultimoReporte, setUltimoReporte] = useState<any>(null);
+  const [cargandoReporte, setCargandoReporte] = useState(true);
 
   // --- EFECTO: CARGAR SESIÓN ---
   useEffect(() => {
@@ -111,6 +118,39 @@ export default function PantallaPrincipal() {
     };
     cargarSesion();
   }, []);
+
+  useEffect(() => {
+    if (id && rol === "cuidador") {
+      const cargarDatosCuidador = async () => {
+        try {
+          const token = await SecureStore.getItemAsync("mi_token_jwt");
+          setCargandoEstadisticas(true);
+
+          const headers = {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          };
+
+          // Cargamos estadísticas y medicamentos
+          const [resGral, resMeds] = await Promise.all([
+            fetch(`${API_URL}/api/stats/actividad/${id}`, { headers }),
+            fetch(`${API_URL}/api/stats/medicamentos-hoy/${id}`, { headers }),
+          ]);
+
+          if (resGral.ok) setEstadisticas(await resGral.json());
+          if (resMeds.ok) setMedsHoy(await resMeds.json());
+
+          // 🔥 LLAMAMOS A LOS REPORTES
+          await fetchUltimoReporte();
+        } catch (e) {
+          console.error("Error cargando datos del cuidador", e);
+        } finally {
+          setCargandoEstadisticas(false);
+        }
+      };
+      cargarDatosCuidador();
+    }
+  }, [id, rol]);
 
   // --- EFECTO: INICIAR GPS ---
   useEffect(() => {
@@ -169,32 +209,45 @@ export default function PantallaPrincipal() {
     }
   };
 
-  // --- EFECTO: CARGAR PANEL CUIDADOR ---
-  useEffect(() => {
-    if (id && rol === "cuidador") {
-      const cargarDatosCuidador = async () => {
-        try {
-          const token = await SecureStore.getItemAsync("mi_token_jwt");
-          setCargandoEstadisticas(true);
-          const headers = {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          };
-          const [resGral, resMeds] = await Promise.all([
-            fetch(`${API_URL}/api/stats/actividad/${id}`, { headers }),
-            fetch(`${API_URL}/api/stats/medicamentos-hoy/${id}`, { headers }),
-          ]);
-          if (resGral.ok) setEstadisticas(await resGral.json());
-          if (resMeds.ok) setMedsHoy(await resMeds.json());
-        } catch (e) {
-          console.error("Error cargando estadísticas");
-        } finally {
-          setCargandoEstadisticas(false);
+  // Cargar PDF de reportes (solo para cuidador)
+  const fetchUltimoReporte = async () => {
+    try {
+      const idPaciente = await SecureStore.getItemAsync("idDelPaciente");
+      const token = await SecureStore.getItemAsync("mi_token_jwt");
+
+      if (!idPaciente) {
+        console.log("⚠️ No hay id_paciente_asignado");
+        setCargandoReporte(false);
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/api/reportes/ultimo/${idPaciente}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+
+        // 🔥 LA CORRECCIÓN ESTÁ AQUÍ:
+        // Si el servidor manda un [ { ... } ], tomamos el primero data[0]
+        if (Array.isArray(data) && data.length > 0) {
+          setUltimoReporte(data[0]);
+        } else if (data && !Array.isArray(data)) {
+          // Si el servidor ya manda el objeto directo
+          setUltimoReporte(data);
+        } else {
+          setUltimoReporte(null);
         }
-      };
-      cargarDatosCuidador();
+      } else {
+        setUltimoReporte(null);
+      }
+    } catch (error) {
+      console.error("Error fetch reporte:", error);
+      setUltimoReporte(null);
+    } finally {
+      setCargandoReporte(false);
     }
-  }, [id, rol]);
+  };
 
   if (cargando) {
     return (
@@ -222,7 +275,7 @@ export default function PantallaPrincipal() {
       ) : rol === "cuidador" ? (
         <ScrollView contentContainerStyle={styles.contenedorCuidador}>
           <Text style={styles.tituloBienvenida}>Panel del Cuidador</Text>
-          <Text style={styles.subtitulo}>Monitoreando a: {nombre}</Text>
+          <Text style={styles.subtitulo}>Bienvenido {nombre}</Text>
 
           <GraficaRosca datos={medsHoy} cargando={cargandoEstadisticas} />
 
@@ -241,6 +294,52 @@ export default function PantallaPrincipal() {
               cargando={cargandoEstadisticas}
             />
           </View>
+          <View style={styles.seccionHeader}>
+            <Text style={styles.tituloSeccion}>Reportes Médicos</Text>
+            <TouchableOpacity onPress={() => router.push("/reportes")}>
+              <Text style={styles.linkVerTodo}>Ver historial</Text>
+            </TouchableOpacity>
+          </View>
+
+          {cargandoReporte ? (
+            <ActivityIndicator color="#3498db" />
+          ) : ultimoReporte ? (
+            <TouchableOpacity
+              style={styles.tarjetaReporte}
+              onPress={() => Linking.openURL(ultimoReporte.url_pdf)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.iconoContenedor}>
+                <MaterialCommunityIcons
+                  name="file-pdf-box"
+                  size={35}
+                  color="#e74c3c"
+                />
+              </View>
+
+              <View style={styles.infoContenedor}>
+                <Text style={styles.reporteTitulo} numberOfLines={1}>
+                  {ultimoReporte.titulo}
+                </Text>
+                <Text style={styles.reporteFecha}>
+                  Publicado el{" "}
+                  {new Date(ultimoReporte.fecha_creacion).toLocaleDateString()}
+                </Text>
+              </View>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={24}
+                color="#bdc3c7"
+              />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.tarjetaVacia}>
+              <Text style={styles.textoVacio}>
+                No hay reportes médicos aún.
+              </Text>
+            </View>
+          )}
         </ScrollView>
       ) : (
         <View style={styles.centrado}>
@@ -272,6 +371,71 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#bbdefb",
+  },
+  seccionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 25,
+    marginBottom: 12,
+  },
+  tituloSeccion: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#2c3e50",
+  },
+  linkVerTodo: {
+    color: "#3498db",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  tarjetaReporte: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 15,
+    padding: 15,
+    alignItems: "center",
+    // Sombra para iOS/Android
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  iconoContenedor: {
+    width: 50,
+    height: 50,
+    backgroundColor: "#fdedec",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  infoContenedor: {
+    flex: 1,
+    marginLeft: 15,
+  },
+  reporteTitulo: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#34495e",
+  },
+  reporteFecha: {
+    fontSize: 13,
+    color: "#95a5a6",
+    marginTop: 2,
+  },
+  tarjetaVacia: {
+    backgroundColor: "#FFF",
+    padding: 20,
+    borderRadius: 15,
+    borderStyle: "dashed",
+    borderWidth: 1,
+    borderColor: "#bdc3c7",
+    alignItems: "center",
+  },
+  textoVacio: {
+    color: "#95a5a6",
+    fontStyle: "italic",
   },
   textoBadge: { color: "#1976d2", fontWeight: "bold", fontSize: 13 },
 });
