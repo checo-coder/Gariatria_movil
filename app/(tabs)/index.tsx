@@ -1,7 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import * as Device from "expo-device";
 import * as Location from "expo-location";
-import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as TaskManager from "expo-task-manager";
@@ -29,30 +27,42 @@ import MenuJuegos from "../_componentes/MenuJuegos";
 // =====================================================================
 // 1. CONFIGURACIÓN Y TAREA DE FONDO
 // =====================================================================
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 const TAREA_RASTREO_ABUELITO = "TAREA_RASTREO_ABUELITO";
 
 let ultimaLat = 0;
 let ultimaLon = 0;
 
 TaskManager.defineTask(TAREA_RASTREO_ABUELITO, async ({ data, error }) => {
-  if (error) return;
+  if (error) {
+    console.log("🚩 [FLAG 1] Error en TaskManager:", error);
+    return;
+  }
   if (data) {
     const { locations } = data as any;
     const latitud = locations[0].coords.latitude;
     const longitud = locations[0].coords.longitude;
 
-    if (latitud === ultimaLat && longitud === ultimaLon) return;
+    console.log("🚩 [FLAG 2] Tarea despertó. Lat:", latitud, "Lon:", longitud);
 
     try {
       const token = await SecureStore.getItemAsync("mi_token_jwt");
-      if (!token) return;
+      if (!token) {
+        console.log("🚩 [FLAG 3] Abortado: No hay token en SecureStore");
+        return;
+      }
+
+      // Evitar envíos duplicados si la posición es idéntica
+      if (latitud === ultimaLat && longitud === ultimaLon) return;
+
+      // CORRECCIÓN: Decodificamos ANTES de usar la variable
       const decoded: any = jwtDecode(token);
+      console.log("🚩 [FLAG 4] Enviando para Paciente ID:", decoded.idUsuario);
 
       ultimaLat = latitud;
       ultimaLon = longitud;
 
-      await fetch(`${API_URL}/ubicacion-fondo`, {
+      const response = await fetch(`${API_URL}/ubicacion-fondo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -61,8 +71,10 @@ TaskManager.defineTask(TAREA_RASTREO_ABUELITO, async ({ data, error }) => {
           longitud,
         }),
       });
+
+      console.log("🚩 [FLAG 5] Respuesta Servidor (Status):", response.status);
     } catch (e) {
-      console.log("Error en envío de fondo");
+      console.log("🚩 [FLAG 6] Error fatal en envío de fondo:", e);
     }
   }
 });
@@ -85,30 +97,31 @@ export default function PantallaPrincipal() {
   // --- EFECTO: CARGAR SESIÓN ---
   useEffect(() => {
     const cargarSesion = async () => {
+      console.log("🚩 [FLAG 7] Cargando sesión...");
       try {
         const token = await SecureStore.getItemAsync("mi_token_jwt");
         if (token) {
           const decoded: any = jwtDecode(token);
+          console.log("🚩 [FLAG 8] Token decodificado. Rol:", decoded.rol);
           setRol(decoded.rol);
           setId(decoded.idUsuario);
           setNombre(decoded.nombre);
 
-          // Registrar Notificaciones
-          if (Device.isDevice) {
-            const { status } = await Notifications.requestPermissionsAsync();
-            if (status === "granted") {
-              const tokenPush = (await Notifications.getExpoPushTokenAsync())
-                .data;
-              await fetch(`${API_URL}/guardar-token`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  id_cliente: decoded.idUsuario,
-                  token: tokenPush,
-                }),
-              });
-            }
-          }
+          // if (Device.isDevice) {
+          //   const { status } = await Notifications.requestPermissionsAsync();
+          //   if (status === "granted") {
+          //     const tokenPush = (await Notifications.getExpoPushTokenAsync())
+          //       .data;
+          //     await fetch(`${API_URL}/api/guardar-token`, {
+          //       method: "POST",
+          //       headers: { "Content-Type": "application/json" },
+          //       body: JSON.stringify({
+          //         id_cliente: decoded.idUsuario,
+          //         token: tokenPush,
+          //       }),
+          //     });
+          //   }
+          // }
         }
       } catch (e) {
         console.error("Error al cargar sesión", e);
@@ -119,31 +132,31 @@ export default function PantallaPrincipal() {
     cargarSesion();
   }, []);
 
+  // --- EFECTO: CARGAR PANEL CUIDADOR ---
   useEffect(() => {
     if (id && rol === "cuidador") {
+      console.log("🚩 [FLAG 9] Iniciando carga de datos para Cuidador");
       const cargarDatosCuidador = async () => {
         try {
           const token = await SecureStore.getItemAsync("mi_token_jwt");
-          setCargandoEstadisticas(true);
-
           const headers = {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           };
 
-          // Cargamos estadísticas y medicamentos
           const [resGral, resMeds] = await Promise.all([
-            fetch(`${API_URL}/api/stats/actividad/${id}`, { headers }),
-            fetch(`${API_URL}/api/stats/medicamentos-hoy/${id}`, { headers }),
+            fetch(`${API_URL}/api/movil/stats/actividad/${id}`, { headers }),
+            fetch(`${API_URL}/api/movil/stats/medicamentos-hoy/${id}`, {
+              headers,
+            }),
           ]);
 
           if (resGral.ok) setEstadisticas(await resGral.json());
           if (resMeds.ok) setMedsHoy(await resMeds.json());
 
-          // 🔥 LLAMAMOS A LOS REPORTES
           await fetchUltimoReporte();
         } catch (e) {
-          console.error("Error cargando datos del cuidador", e);
+          console.error("Error cargando datos", e);
         } finally {
           setCargandoEstadisticas(false);
         }
@@ -154,37 +167,29 @@ export default function PantallaPrincipal() {
 
   // --- EFECTO: INICIAR GPS ---
   useEffect(() => {
+    // ⚠️ REVISIÓN: Asegúrate de que el rol sea exactamente "Persona Mayor" o "persona mayor"
     if (rol === "Persona Mayor" && id) {
+      console.log("🚩 [FLAG 10] Iniciando rastreo seguro para Paciente");
       iniciarRastreoSeguro();
     }
   }, [rol, id]);
 
   const iniciarRastreoSeguro = async () => {
-    // 🛡️ REGLA DE ORO: No iniciar si la app no está en primer plano
-    if (AppState.currentState !== "active") {
-      console.log("Bloqueo preventivo: App en background");
-      return;
-    }
+    if (AppState.currentState !== "active") return;
 
     try {
       const { status: fg } = await Location.requestForegroundPermissionsAsync();
       const { status: bg } = await Location.requestBackgroundPermissionsAsync();
 
       if (fg !== "granted" || bg !== "granted") {
-        Alert.alert(
-          "Permisos necesarios",
-          "Por favor activa 'Permitir siempre' la ubicación.",
-        );
+        Alert.alert("Error", "Debes activar permisos de ubicación 'Siempre'.");
         return;
       }
 
       const yaRegistrada = await TaskManager.isTaskRegisteredAsync(
         TAREA_RASTREO_ABUELITO,
       );
-
-      // Si ya está activa, no la reiniciamos para evitar errores de Android
       if (yaRegistrada) {
-        console.log("El rastreo ya está en marcha.");
         setRastreoActivo(true);
         return;
       }
@@ -193,57 +198,37 @@ export default function PantallaPrincipal() {
         accuracy: Location.Accuracy.Balanced,
         timeInterval: 15000,
         distanceInterval: 10,
-        pausesUpdatesAutomatically: false,
-        showsBackgroundLocationIndicator: true,
         foregroundService: {
           notificationTitle: "OldFit: Seguridad Activa",
-          notificationBody: "Tu cuidador puede ver tu ubicación.",
+          notificationBody: "Compartiendo ubicación con tu cuidador.",
           notificationColor: "#3498db",
         },
       });
 
       setRastreoActivo(true);
-      console.log("GPS iniciado con éxito");
+      console.log("✅ GPS iniciado con éxito");
     } catch (err) {
       console.error("Error GPS:", err);
     }
   };
 
-  // Cargar PDF de reportes (solo para cuidador)
   const fetchUltimoReporte = async () => {
     try {
       const idPaciente = await SecureStore.getItemAsync("idDelPaciente");
       const token = await SecureStore.getItemAsync("mi_token_jwt");
+      if (!idPaciente) return;
 
-      if (!idPaciente) {
-        console.log("⚠️ No hay id_paciente_asignado");
-        setCargandoReporte(false);
-        return;
-      }
-
-      const res = await fetch(`${API_URL}/api/reportes/ultimo/${idPaciente}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `${API_URL}/api/movil/reportes/ultimo/${idPaciente}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (res.ok) {
         const data = await res.json();
-
-        // 🔥 LA CORRECCIÓN ESTÁ AQUÍ:
-        // Si el servidor manda un [ { ... } ], tomamos el primero data[0]
-        if (Array.isArray(data) && data.length > 0) {
-          setUltimoReporte(data[0]);
-        } else if (data && !Array.isArray(data)) {
-          // Si el servidor ya manda el objeto directo
-          setUltimoReporte(data);
-        } else {
-          setUltimoReporte(null);
-        }
-      } else {
-        setUltimoReporte(null);
+        setUltimoReporte(Array.isArray(data) ? data[0] : data);
       }
-    } catch (error) {
-      console.error("Error fetch reporte:", error);
-      setUltimoReporte(null);
     } finally {
       setCargandoReporte(false);
     }
@@ -294,6 +279,7 @@ export default function PantallaPrincipal() {
               cargando={cargandoEstadisticas}
             />
           </View>
+
           <View style={styles.seccionHeader}>
             <Text style={styles.tituloSeccion}>Reportes Médicos</Text>
             <TouchableOpacity onPress={() => router.push("/reportes")}>
@@ -307,7 +293,6 @@ export default function PantallaPrincipal() {
             <TouchableOpacity
               style={styles.tarjetaReporte}
               onPress={() => Linking.openURL(ultimoReporte.url_pdf)}
-              activeOpacity={0.8}
             >
               <View style={styles.iconoContenedor}>
                 <MaterialCommunityIcons
@@ -316,7 +301,6 @@ export default function PantallaPrincipal() {
                   color="#e74c3c"
                 />
               </View>
-
               <View style={styles.infoContenedor}>
                 <Text style={styles.reporteTitulo} numberOfLines={1}>
                   {ultimoReporte.titulo}
@@ -326,7 +310,6 @@ export default function PantallaPrincipal() {
                   {new Date(ultimoReporte.fecha_creacion).toLocaleDateString()}
                 </Text>
               </View>
-
               <MaterialCommunityIcons
                 name="chevron-right"
                 size={24}
@@ -379,28 +362,15 @@ const styles = StyleSheet.create({
     marginTop: 25,
     marginBottom: 12,
   },
-  tituloSeccion: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2c3e50",
-  },
-  linkVerTodo: {
-    color: "#3498db",
-    fontWeight: "600",
-    fontSize: 14,
-  },
+  tituloSeccion: { fontSize: 18, fontWeight: "bold", color: "#2c3e50" },
+  linkVerTodo: { color: "#3498db", fontWeight: "600", fontSize: 14 },
   tarjetaReporte: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
     borderRadius: 15,
     padding: 15,
     alignItems: "center",
-    // Sombra para iOS/Android
     elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   iconoContenedor: {
     width: 50,
@@ -410,20 +380,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  infoContenedor: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  reporteTitulo: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#34495e",
-  },
-  reporteFecha: {
-    fontSize: 13,
-    color: "#95a5a6",
-    marginTop: 2,
-  },
+  infoContenedor: { flex: 1, marginLeft: 15 },
+  reporteTitulo: { fontSize: 16, fontWeight: "bold", color: "#34495e" },
+  reporteFecha: { fontSize: 13, color: "#95a5a6", marginTop: 2 },
   tarjetaVacia: {
     backgroundColor: "#FFF",
     padding: 20,
@@ -433,9 +392,6 @@ const styles = StyleSheet.create({
     borderColor: "#bdc3c7",
     alignItems: "center",
   },
-  textoVacio: {
-    color: "#95a5a6",
-    fontStyle: "italic",
-  },
+  textoVacio: { color: "#95a5a6", fontStyle: "italic" },
   textoBadge: { color: "#1976d2", fontWeight: "bold", fontSize: 13 },
 });

@@ -29,7 +29,8 @@ export default function Inicio() {
     }
 
     try {
-      const urlDelServidor = "http://192.168.100.38:4000/auth/login";
+      const urlDelServidor =
+        "https://backendoldfit-production.up.railway.app/api/movil/auth/login";
       const respuesta = await fetch(urlDelServidor, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 
 export default function PantallaConfiguracion() {
   const [perfil, setPerfil] = useState<any>(null);
@@ -34,7 +34,7 @@ export default function PantallaConfiguracion() {
 
       const decoded: any = jwtDecode(token);
       const respuesta = await fetch(
-        `${API_URL}/auth/perfil/${decoded.idUsuario}`,
+        `${API_URL}/api/movil/auth/perfil/${decoded.idUsuario}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },

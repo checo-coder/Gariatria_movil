@@ -72,7 +72,8 @@ export default function Registro() {
 
     try {
       // ⚠️ Cambia la IP por la de tu servidor local
-      const urlDelServidor = "http://192.168.100.38:4000/auth/signup";
+      const urlDelServidor =
+        "https://backendoldfit-production.up.railway.app/api/movil/auth/signup";
       const respuesta = await fetch(urlDelServidor, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

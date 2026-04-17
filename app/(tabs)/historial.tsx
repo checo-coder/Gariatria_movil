@@ -11,7 +11,7 @@ import {
 import TarjetaMedicina from "../_componentes/TarjetaMedicina";
 
 // ⚠️ Asegúrate de poner tu IP correcta
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 
 export default function PantallaInicio() {
   const [proximas, setProximas] = useState<any[]>([]);
@@ -40,11 +40,11 @@ export default function PantallaInicio() {
 
       // Disparamos las dos peticiones a Node simultáneamente para que sea más rápido
       const [resProximas, resHistorial] = await Promise.all([
-        fetch(`${API_URL}/api/meds/tomas/${idPaciente}`, {
+        fetch(`${API_URL}/api/movil/meds/tomas/${idPaciente}`, {
           method: "GET",
           headers,
         }),
-        fetch(`${API_URL}/api/meds/historial/${idPaciente}`, {
+        fetch(`${API_URL}/api/movil/meds/historial/${idPaciente}`, {
           method: "GET",
           headers,
         }),

@@ -13,7 +13,7 @@ import {
 } from "react-native";
 
 const { width } = Dimensions.get("window");
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 const TOTAL_RONDAS = 10;
 
 // BANCO DE DATOS
@@ -142,7 +142,7 @@ export default function JuegoLenguaje() {
         },
       };
 
-      await fetch(`${API_URL}/api/stats/juegos/registrar`, {
+      await fetch(`${API_URL}/api/movil/stats/juegos/registrar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

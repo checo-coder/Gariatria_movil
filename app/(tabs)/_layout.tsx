@@ -64,7 +64,7 @@ export default function TabsLayout() {
       }
 
       const respuesta = await fetch(
-        `http://192.168.100.38:4000/api/meds/tomas/${idPaciente}`,
+        `https://backendoldfit-production.up.railway.app/api/movil/meds/tomas/${idPaciente}`,
         {
           method: "GET",
           headers: {

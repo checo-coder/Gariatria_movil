@@ -9,7 +9,7 @@ import { io } from "socket.io-client";
 import BarraControl from "../_componentes/BarraControl";
 import MapaVisual from "../_componentes/MapaVisual";
 
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 const socket = io(API_URL);
 
 export default function PantallaMapa() {
@@ -52,7 +52,7 @@ export default function PantallaMapa() {
   const cargarZonaSegura = async (id: string) => {
     try {
       const token = await SecureStore.getItemAsync("mi_token_jwt");
-      const res = await fetch(`${API_URL}/api/gps/zona/${id}`, {
+      const res = await fetch(`${API_URL}/api/movil/gps/zona/${id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -99,7 +99,7 @@ export default function PantallaMapa() {
     setProcesando(true);
     try {
       const token = await SecureStore.getItemAsync("mi_token_jwt");
-      const res = await fetch(`${API_URL}/api/gps/configurar`, {
+      const res = await fetch(`${API_URL}/api/movil/gps/configurar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -135,12 +135,15 @@ export default function PantallaMapa() {
           setProcesando(true);
           try {
             const token = await SecureStore.getItemAsync("mi_token_jwt");
-            const res = await fetch(`${API_URL}/api/gps/zona/${idPaciente}`, {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${token}`,
+            const res = await fetch(
+              `${API_URL}/api/movil/gps/zona/${idPaciente}`,
+              {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
               },
-            });
+            );
             if (res.ok) {
               setZonaGuardada(null);
               setZonaBorrador(null);

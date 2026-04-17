@@ -4,7 +4,7 @@ import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 // 1. IMPORTANTE: Necesitamos el SecureStore para el token
 import * as SecureStore from "expo-secure-store";
 
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 
 export default function TarjetaMedicina({
   item,

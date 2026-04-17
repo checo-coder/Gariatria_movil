@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import TarjetaCita from "../_componentes/TarjetaCita";
 
-const API_URL = "http://192.168.100.38:4000"; // Cambiar por tu URL de Railway cuando subas
+const API_URL = "https://backendoldfit-production.up.railway.app"; // Cambiar por tu URL de Railway cuando subas
 
 export default function PantallaCitas() {
   interface Cita {
@@ -52,7 +52,7 @@ export default function PantallaCitas() {
         return;
       }
 
-      const respuesta = await fetch(`${API_URL}/api/citas/${idCliente}`, {
+      const respuesta = await fetch(`${API_URL}/api/movil/citas/${idCliente}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -71,7 +71,7 @@ export default function PantallaCitas() {
   const handleCancelarCita = async (idCita: number) => {
     try {
       const token = await SecureStore.getItemAsync("mi_token_jwt");
-      const respuesta = await fetch(`${API_URL}/api/citas/${idCita}`, {
+      const respuesta = await fetch(`${API_URL}/api/movil/citas/${idCita}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

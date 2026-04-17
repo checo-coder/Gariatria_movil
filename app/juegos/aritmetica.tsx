@@ -12,7 +12,7 @@ import {
 } from "react-native";
 
 const { width } = Dimensions.get("window");
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 const OPERACIONES = ["+", "-", "x", "÷"];
 const TOTAL_RONDAS = 10;
 
@@ -122,7 +122,7 @@ export default function JuegoAritmetica() {
         },
       };
 
-      await fetch(`${API_URL}/api/stats/juegos/registrar`, {
+      await fetch(`${API_URL}/api/movil/stats/juegos/registrar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

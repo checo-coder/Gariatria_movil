@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import TarjetaEjercicio from "../_componentes/TarjetaEjercicio"; // <--- Importamos el nuevo componente
 
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 
 const EJERCICIOS_BASE = [
   {
@@ -59,7 +59,7 @@ export default function MenuEvaluacion() {
       const idCliente = await SecureStore.getItemAsync("idDelPaciente");
       const token = await SecureStore.getItemAsync("mi_token_jwt");
       const respuesta = await fetch(
-        `${API_URL}/api/stats/evaluaciones/ultimo/${idCliente}`,
+        `${API_URL}/api/movil/stats/evaluaciones/ultimo/${idCliente}`,
         {
           method: "GET",
           headers: {

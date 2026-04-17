@@ -2,12 +2,12 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import {
-    FlatList,
-    Linking,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  FlatList,
+  Linking,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 interface Reporte {
   id_reporte: number;
@@ -15,7 +15,7 @@ interface Reporte {
   url_pdf: string;
   fecha_creacion: string;
 }
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 
 export default function HistorialReportes() {
   const [reportes, setReportes] = useState<Reporte[]>([]);
@@ -28,9 +28,12 @@ export default function HistorialReportes() {
     const idPaciente = await SecureStore.getItemAsync("idDelPaciente");
     const token = await SecureStore.getItemAsync("mi_token_jwt");
 
-    const res = await fetch(`${API_URL}/api/reportes/historial/${idPaciente}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(
+      `${API_URL}/api/movil/reportes/historial/${idPaciente}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
     console.log("🔗 Pidiendo historial a:", res);
     const datos = await res.json();
     console.log("📄 Respuesta bruta del servidor:", datos);

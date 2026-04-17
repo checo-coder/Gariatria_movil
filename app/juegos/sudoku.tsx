@@ -15,7 +15,7 @@ import sudoku from "sudoku";
 
 const { width } = Dimensions.get("window");
 const CELL_SIZE = Math.floor((width - 40) / 9);
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 
 export default function SudokuLocal() {
   // --- ESTADOS DEL JUEGO ---
@@ -85,14 +85,17 @@ export default function SudokuLocal() {
         },
       };
 
-      const respuesta = await fetch(`${API_URL}/api/stats/juegos/registrar`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const respuesta = await fetch(
+        `${API_URL}/api/movil/stats/juegos/registrar`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      });
+      );
 
       if (respuesta.ok) {
         console.log("✅ Sudoku guardado con éxito");

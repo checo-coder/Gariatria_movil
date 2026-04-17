@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import MemoramaCard from "../_componentes/MemoramaCard";
 
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 
 interface Carta {
   code: string;
@@ -37,7 +37,7 @@ export default function JuegoMemorama() {
   const router = useRouter();
 
   useEffect(() => {
-    fetch(`${API_URL}/api/stats/juegos/memoria`)
+    fetch(`${API_URL}/api/movil/stats/juegos/memoria`)
       .then((response) => response.json())
       .then((data) => {
         setCartas(data.cards);
@@ -76,14 +76,17 @@ export default function JuegoMemorama() {
         detalles: { max_combo: maxCombo, finalizo: true },
       };
 
-      const respuesta = await fetch(`${API_URL}/api/stats/juegos/registrar`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const respuesta = await fetch(
+        `${API_URL}/api/movil/stats/juegos/registrar`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      });
+      );
 
       if (!respuesta.ok) {
         const errorData = await respuesta.json();

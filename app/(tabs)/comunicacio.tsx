@@ -35,7 +35,7 @@ interface Medico {
   cedula: string;
 }
 
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 
 export default function ChatScreen() {
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
@@ -59,7 +59,7 @@ export default function ChatScreen() {
         setRolUsuario(decoded.rol);
 
         // B. Obtener mi Geriatra (usando la nueva ruta de asignación)
-        const resMed = await fetch(`${API_URL}/api/chat/mi-geriatra`, {
+        const resMed = await fetch(`${API_URL}/api/movil/chat/mi-geriatra`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!resMed.ok) throw new Error("No se encontró médico");
@@ -68,7 +68,7 @@ export default function ChatScreen() {
 
         // C. Obtener/Crear conversación
         const resChat = await fetch(
-          `${API_URL}/api/chat/conversacion/${datosMed.id_geriatra}`,
+          `${API_URL}/api/movil/chat/conversacion/${datosMed.id_geriatra}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           },
@@ -78,7 +78,7 @@ export default function ChatScreen() {
 
         // D. Cargar Historial
         const resMsgs = await fetch(
-          `${API_URL}/api/chat/mensajes/${datosChat.id_conversacion}`,
+          `${API_URL}/api/movil/chat/mensajes/${datosChat.id_conversacion}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           },
@@ -123,7 +123,7 @@ export default function ChatScreen() {
       };
 
       // 1. Guardar en Base de Datos
-      const res = await fetch(`${API_URL}/api/chat/enviar`, {
+      const res = await fetch(`${API_URL}/api/movil/chat/enviar`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

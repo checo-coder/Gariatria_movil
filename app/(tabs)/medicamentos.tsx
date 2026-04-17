@@ -11,7 +11,7 @@ import {
 // IMPORTAMOS EL COMPONENTE (Asegúrate de que la ruta sea correcta según tus carpetas)
 import TarjetaMedicina from "../_componentes/TarjetaMedicina";
 
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 
 export default function PantallaMedicamentos() {
   const [tomas, setTomas] = useState<any[]>([]);
@@ -33,13 +33,16 @@ export default function PantallaMedicamentos() {
         return;
       }
 
-      const respuesta = await fetch(`${API_URL}/api/meds/tomas/${idPaciente}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const respuesta = await fetch(
+        `${API_URL}/api/movil/meds/tomas/${idPaciente}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       const datos = await respuesta.json();
 
