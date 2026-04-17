@@ -50,7 +50,7 @@ export default function TarjetaMedicina({
       }
 
       const respuesta = await fetch(
-        `${API_URL}/api/meds/tomas/${item.id_toma}/tomada`,
+        `${API_URL}/api/movil/meds/tomas/${item.id_toma}/tomada`,
         {
           method: "PUT",
           headers: {

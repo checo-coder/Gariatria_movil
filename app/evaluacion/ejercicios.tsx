@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { DATOS_EJERCICIOS } from "../../_utils/ejercicios";
 
-const API_URL = "http://192.168.100.38:4000";
+const API_URL = "https://backendoldfit-production.up.railway.app";
 
 export default function PantallaEjercicio() {
   const { tipo } = useLocalSearchParams();
@@ -28,19 +28,22 @@ export default function PantallaEjercicio() {
     try {
       const idCliente = await SecureStore.getItemAsync("idDelPaciente");
       const token = await SecureStore.getItemAsync("mi_token_jwt");
-      const respuesta = await fetch(`${API_URL}/api/stats/evaluacion-fisica`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const respuesta = await fetch(
+        `${API_URL}/api/movil/stats/evaluacion-fisica`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            id_cliente: idCliente,
+            nombre_ejercicio: config.nombre,
+            metrica: `${resultado} ${config.unidad}`,
+            observaciones: `${observaciones}`,
+          }),
         },
-        body: JSON.stringify({
-          id_cliente: idCliente,
-          nombre_ejercicio: config.nombre,
-          metrica: `${resultado} ${config.unidad}`,
-          observaciones: `${observaciones}`,
-        }),
-      });
+      );
 
       if (respuesta.ok) {
         Alert.alert("🎉 ¡Muy bien!", "Tu progreso ha sido guardado con éxito.");
